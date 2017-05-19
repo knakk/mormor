@@ -178,13 +178,13 @@ func TestOutOfBoundsQ(t *testing.T) {
 	}{
 		{ // 1
 			`- <book> ?p ?o .
-			 <book> ?p ?o .`,
+			<book> ?p ?o .`,
 			[]string{"book"},
 			false,
 		},
 		{ // 2
 			`- <book> ?p ?o .
-			 <book> ?p ?o .`,
+			<book> ?p ?o .`,
 			[]string{"books", "book1", "book2"},
 			true,
 		},
@@ -202,6 +202,44 @@ func TestOutOfBoundsQ(t *testing.T) {
 			[]string{"book", "person1"},
 			true,
 		},
+		{ // 5
+			`- ?s ?p ?o .
+			?s ?p ?o .`,
+			[]string{"book/123", "person/456"},
+			true,
+		},
+		{ // 6
+			`- ?work ?p ?o .
+			<person> <created> ?book .
+			?book <isPublicationOf> ?work .
+			?work ?p ?o .`,
+			[]string{"person"},
+			true,
+		},
+		{ // 7
+			`- ?work ?p ?o .
+			<person> <created> ?book .
+			?book <isPublicationOf> <work> .
+			?work ?p ?o .`,
+			[]string{"person", "work"},
+			true,
+		},
+		{ // 8
+			`- ?work <title> "x" .
+			 + ?work <title> "y" .
+			<person> <created> ?work .
+			?work <title> "x" .`,
+			[]string{"person"},
+			false,
+		},
+		{ // 9
+			`- ?work <title> "x" .
+			 + ?work <title> "y" .
+			<person> <created> ?work .
+			?work <title> "x" .`,
+			[]string{"work"},
+			true,
+		},
 	}
 
 	for i, test := range tests {
@@ -209,8 +247,8 @@ func TestOutOfBoundsQ(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got := outOfBoundsQ(test.resources, del, ins, where); got != test.want {
-			t.Errorf("outOfBoundsQ #%d: got %v; want %v", i+1, got, test.want)
+		if got := outOfBoundsQuery(test.resources, del, ins, where); got != test.want {
+			t.Errorf("outOfBoundsQuery #%d: got %v; want %v", i+1, got, test.want)
 		}
 	}
 }

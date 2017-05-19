@@ -88,7 +88,7 @@ func (m *metadataService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if outOfBoundsQ(resources, del, ins, where) {
+		if outOfBoundsQuery(resources, del, ins, where) {
 			http.Error(w, "bad request: trying to update unrelated resources", http.StatusBadRequest)
 			return
 		}
@@ -109,18 +109,32 @@ func (m *metadataService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func outOfBoundsQ(resources []string, del, ins, where []rdf.TriplePattern) bool {
-	return subjectInResources(resources, del) &&
-		subjectInResources(resources, ins) &&
-		subjectInResources(resources, where)
+// outOfBoundsQuery tests if the query would remove or add triples to resources not in
+// the specified resources list.
+func outOfBoundsQuery(resources []string, del, ins, where []rdf.TriplePattern) bool {
+	return subjectNotInResources(resources, del, where) ||
+		subjectNotInResources(resources, ins, where)
 }
 
-func subjectInResources(resources []string, patterns []rdf.TriplePattern) bool {
-	for _, candidate := range patterns {
+func subjectNotInResources(resources []string, op, where []rdf.TriplePattern) bool {
+	if len(op) == 0 {
+		return false
+	}
+	for _, candidate := range op {
 		if node, ok := candidate.Subject.(rdf.NamedNode); ok {
 			// Only allowed if node is in resources.
 			if inResources(node.Name(), resources) {
 				return false
+			}
+		} else if vs, ok := candidate.Subject.(rdf.Variable); ok {
+			// Only allowed if node is object in triple where subject
+			// node is in resources
+			for _, p := range where {
+				if vo, ok := p.Object.(rdf.Variable); ok && vs == vo {
+					if node, ok := p.Subject.(rdf.NamedNode); ok && inResources(node.Name(), resources) {
+						return false
+					}
+				}
 			}
 		}
 	}
