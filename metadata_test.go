@@ -62,6 +62,46 @@ func mustEncode(g *memory.Graph) string {
 	return b.String()
 }
 
+func testWantGraph(t *testing.T, method string, url string, body string, wantGraph string) {
+	req, err := http.NewRequest(method, url, bytes.NewBufferString(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("got %v; want 200 OK", resp.Status)
+	}
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := mustDecode(string(b))
+	want := mustDecode(wantGraph)
+	if !got.Eq(want) {
+		t.Errorf("got:\n%v\nwant:\n%v", mustEncode(got), mustEncode(want))
+	}
+}
+
+func testWantStatus(t *testing.T, method, url, body string, status int) {
+	req, err := http.NewRequest(method, url, bytes.NewBufferString(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != status {
+		t.Fatalf("got %v; want %v", resp.Status, status)
+	}
+
+}
+
 // Verify that resources can be fetched and updated
 func TestGetAndUpdateResources(t *testing.T) {
 	m := &metadataService{
@@ -78,138 +118,56 @@ func TestGetAndUpdateResources(t *testing.T) {
 	srv := httptest.NewServer(m)
 
 	// Fetch single resource
-	resp, err := http.Get(srv.URL + "/resource/person")
-	if err != nil {
-		t.Fatal(err)
-	}
-	b, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp.Body.Close()
-	got := mustDecode(string(b))
-	want := mustDecode(
+	testWantGraph(t, "GET", srv.URL+"/resource/person", "",
 		`<person> <hasName> "Name" .
 		 <person> <hasBirthYear> "1988" .`)
-	if !got.Eq(want) {
-		t.Errorf("got:\n%v\nwant:\n%v", mustEncode(got), mustEncode(want))
-	}
 
 	// Fetch multiple resouces
-	resp, err = http.Get(srv.URL + "/resource/person+book")
-	if err != nil {
-		t.Fatal(err)
-	}
-	b, err = ioutil.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp.Body.Close()
-	got = mustDecode(string(b))
-	want = mustDecode(
+	testWantGraph(t, "GET", srv.URL+"/resource/person+book", "",
 		`<person> <hasName> "Name" .
 		 <person> <hasBirthYear> "1988" .
 		 <book> <hasTitle> "title" .
 		 <book> <hasContribution> _:c .
 		 _:c <hasAgent> <person> .
 		 _:c <hasRole> <author> .`)
-	if !got.Eq(want) {
-		t.Errorf("got:\n%v\nwant:\n%v", mustEncode(got), mustEncode(want))
-	}
 
 	// Update resource
-	req, err := http.NewRequest(
-		"PATCH",
-		srv.URL+"/resource/person",
-		bytes.NewBufferString(
-			`- <person> <hasBirthYear> "1988" .
-			 + <person> <hasBirthYear> "1888" .
-			 + <person> <hasDeathYear> "1958" .`))
-	resp, err = http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("got %v; want 200 OK", resp.Status)
-	}
+	testWantStatus(t, "PATCH", srv.URL+"/resource/person",
+		`- <person> <hasBirthYear> "1988" .
+		 + <person> <hasBirthYear> "1888" .
+		 + <person> <hasDeathYear> "1958" .`,
+		http.StatusOK)
 
 	// Verify it's been updated
-	resp, err = http.Get(srv.URL + "/resource/person")
-	if err != nil {
-		t.Fatal(err)
-	}
-	b, err = ioutil.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp.Body.Close()
-	got = mustDecode(string(b))
-	want = mustDecode(
+	testWantGraph(t, "GET", srv.URL+"/resource/person", "",
 		`<person> <hasName> "Name" .
 		 <person> <hasBirthYear> "1888" .
 		 <person> <hasDeathYear> "1958" .`)
-	if !got.Eq(want) {
-		t.Errorf("got:\n%v\nwant:\n%v", mustEncode(got), mustEncode(want))
-	}
 
 	// Update bnode resource
-	req, err = http.NewRequest(
-		"PATCH",
-		srv.URL+"/resource/book",
-		bytes.NewBufferString(
-			`- ?c <hasRole> <author> .
+	testWantStatus(t, "PATCH", srv.URL+"/resource/book",
+		`- ?c <hasRole> <author> .
 			 + ?c <hasRole> <editor> .
 			 <book> <hasContribution> ?c .
 			 ?c <hasAgent> <person> .
-			 ?c <hasRole> <author> .`))
-	resp, err = http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("got %v; want 200 OK", resp.Status)
-	}
+			 ?c <hasRole> <author> .`,
+		http.StatusOK)
 
 	// Verify it's been updated
-	resp, err = http.Get(srv.URL + "/resource/book")
-	if err != nil {
-		t.Fatal(err)
-	}
-	b, err = ioutil.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp.Body.Close()
-	got = mustDecode(string(b))
-	want = mustDecode(
+	testWantGraph(t, "GET", srv.URL+"/resource/book", "",
 		`<book> <hasTitle> "title" .
 		 <book> <hasContribution> _:c .
 		 _:c <hasAgent> <person> .
 		 _:c <hasRole> <editor> .`)
-	if !got.Eq(want) {
-		t.Errorf("got:\n%v\nwant:\n%v", mustEncode(got), mustEncode(want))
-	}
 
 	// Verify you cannot update resources not "in focus"
-	req, err = http.NewRequest(
-		"PATCH",
-		srv.URL+"/resource/book",
-		bytes.NewBufferString(
-			`- ?c <hasRole> <author> .
+	testWantStatus(t, "PATCH", srv.URL+"/resource/book",
+		`- ?c <hasRole> <author> .
 			 + ?c <hasRole> <editor> .
 			 <book2> <hasContribution> ?c .
 			 ?c <hasAgent> <person> .
-			 ?c <hasRole> <author> .`))
-	resp, err = http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp.Body.Close()
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("got %v; want 400 Bad Request", resp.Status)
-	}
+			 ?c <hasRole> <author> .`,
+		http.StatusBadRequest)
 }
 
 func TestOutOfBoundsQ(t *testing.T) {
