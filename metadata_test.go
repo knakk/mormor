@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/knakk/kbp/rdf"
@@ -82,11 +83,11 @@ func testWantGraph(t *testing.T, method string, url string, body string, wantGra
 	got := mustDecode(string(b))
 	want := mustDecode(wantGraph)
 	if !got.Eq(want) {
-		t.Errorf("got:\n%v\nwant:\n%v", mustEncode(got), mustEncode(want))
+		t.Fatalf("got:\n%v\nwant:\n%v", mustEncode(got), mustEncode(want))
 	}
 }
 
-func testWantStatus(t *testing.T, method, url, body string, status int) {
+func testWantStatus(t *testing.T, method, url, body string, status int) *http.Response {
 	req, err := http.NewRequest(method, url, bytes.NewBufferString(body))
 	if err != nil {
 		t.Fatal(err)
@@ -99,74 +100,95 @@ func testWantStatus(t *testing.T, method, url, body string, status int) {
 	if resp.StatusCode != status {
 		t.Fatalf("got %v; want %v", resp.Status, status)
 	}
-
+	return resp
 }
 
-// Verify that resources can be fetched and updated
-func TestGetAndUpdateResources(t *testing.T) {
+// Verify that resources can be created, fetched and updated.
+func TestCreateGetAndUpdateResources(t *testing.T) {
 	m := &metadataService{
-		triplestore: mustDecode(
-			`<person> <hasName> "Name" .
-			 <person> <hasBirthYear> "1988" .
-			 <book> <hasTitle> "title" .
-			 <book> <hasContribution> _:c .
-			 _:c <hasAgent> <person> .
-			 _:c <hasRole> <author> .`,
-		),
+		triplestore: memory.NewGraph(),
 	}
 
 	srv := httptest.NewServer(m)
 
+	// Create two resources and find their URIs in Location header
+	resp := testWantStatus(t, "POST", srv.URL+"/resource/person",
+		`<> <hasName> "Name" .
+		 <> <hasBirthYear> "1988" .`,
+		http.StatusCreated)
+	personuri := resp.Header.Get("Location")
+	if personuri == "" {
+		t.Fatal("URI of created resource not found in Location header")
+	}
+
+	resp = testWantStatus(t, "POST", srv.URL+"/resource/book",
+		`<> <hasTitle> "title" .
+		 <> <hasContribution> _:c .
+		 _:c <hasAgent> <`+personuri+`> .
+		 _:c <hasRole> <author> .`,
+		http.StatusCreated)
+	bookuri := resp.Header.Get("Location")
+	if bookuri == "" {
+		t.Fatal("URI of created resource not found in Location header")
+	}
+
+	rpl := strings.NewReplacer("bookuri", bookuri, "personuri", personuri)
+
 	// Fetch single resource
-	testWantGraph(t, "GET", srv.URL+"/resource/person", "",
-		`<person> <hasName> "Name" .
-		 <person> <hasBirthYear> "1988" .`)
+	testWantGraph(t, "GET", srv.URL+"/resource/"+personuri, "",
+		rpl.Replace(`<personuri> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <Person> .
+					 <personuri> <hasName> "Name" .
+		 			 <personuri> <hasBirthYear> "1988" .`))
 
 	// Fetch multiple resouces
-	testWantGraph(t, "GET", srv.URL+"/resource/person+book", "",
-		`<person> <hasName> "Name" .
-		 <person> <hasBirthYear> "1988" .
-		 <book> <hasTitle> "title" .
-		 <book> <hasContribution> _:c .
-		 _:c <hasAgent> <person> .
-		 _:c <hasRole> <author> .`)
+	testWantGraph(t, "GET", srv.URL+"/resource/"+personuri+"+"+bookuri, "",
+		rpl.Replace(`<personuri> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <Person> .
+					 <personuri> <hasName> "Name" .
+					 <personuri> <hasBirthYear> "1988" .
+					 <bookuri> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <Book> .
+					 <bookuri> <hasTitle> "title" .
+					 <bookuri> <hasContribution> _:c .
+					 _:c <hasAgent> <personuri> .
+					 _:c <hasRole> <author> .`))
 
 	// Update resource
-	testWantStatus(t, "PATCH", srv.URL+"/resource/person",
-		`- <person> <hasBirthYear> "1988" .
-		 + <person> <hasBirthYear> "1888" .
-		 + <person> <hasDeathYear> "1958" .`,
+	testWantStatus(t, "PATCH", srv.URL+"/resource/"+personuri,
+		rpl.Replace(`- <personuri> <hasBirthYear> "1988" .
+					 + <personuri> <hasBirthYear> "1888" .
+					 + <personuri> <hasDeathYear> "1958" .`),
 		http.StatusOK)
 
 	// Verify it's been updated
-	testWantGraph(t, "GET", srv.URL+"/resource/person", "",
-		`<person> <hasName> "Name" .
-		 <person> <hasBirthYear> "1888" .
-		 <person> <hasDeathYear> "1958" .`)
+	testWantGraph(t, "GET", srv.URL+"/resource/"+personuri, "",
+		rpl.Replace(`<personuri> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <Person> .
+					 <personuri> <hasName> "Name" .
+					 <personuri> <hasBirthYear> "1888" .
+					 <personuri> <hasDeathYear> "1958" .`))
 
 	// Update bnode resource
-	testWantStatus(t, "PATCH", srv.URL+"/resource/book",
-		`- ?c <hasRole> <author> .
-			 + ?c <hasRole> <editor> .
-			 <book> <hasContribution> ?c .
-			 ?c <hasAgent> <person> .
-			 ?c <hasRole> <author> .`,
+	testWantStatus(t, "PATCH", srv.URL+"/resource/"+bookuri,
+		rpl.Replace(`- ?c <hasRole> <author> .
+					 + ?c <hasRole> <editor> .
+					 <bookuri> <hasContribution> ?c .
+					 ?c <hasAgent> <personuri> .
+					 ?c <hasRole> <author> .`),
 		http.StatusOK)
 
 	// Verify it's been updated
-	testWantGraph(t, "GET", srv.URL+"/resource/book", "",
-		`<book> <hasTitle> "title" .
-		 <book> <hasContribution> _:c .
-		 _:c <hasAgent> <person> .
-		 _:c <hasRole> <editor> .`)
+	testWantGraph(t, "GET", srv.URL+"/resource/"+bookuri, "",
+		rpl.Replace(`<bookuri> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <Book> .
+					 <bookuri> <hasTitle> "title" .
+					 <bookuri> <hasContribution> _:c .
+					 _:c <hasAgent> <personuri> .
+					 _:c <hasRole> <editor> .`))
 
 	// Verify you cannot update resources not "in focus"
-	testWantStatus(t, "PATCH", srv.URL+"/resource/book",
-		`- ?c <hasRole> <author> .
-			 + ?c <hasRole> <editor> .
-			 <book2> <hasContribution> ?c .
-			 ?c <hasAgent> <person> .
-			 ?c <hasRole> <author> .`,
+	testWantStatus(t, "PATCH", srv.URL+"/resource/book1",
+		rpl.Replace(`- ?c <hasRole> <author> .
+					 + ?c <hasRole> <editor> .
+					 <book123> <hasContribution> ?c .
+					 ?c <hasAgent> <personuri> .
+					 ?c <hasRole> <author> .`),
 		http.StatusBadRequest)
 }
 

@@ -47,10 +47,11 @@ func (m *mormorMain) Run() {
 
 	log.Println("Mormor is shutting down.")
 
-	// Shutdown all services.
-	for _, s := range m.services {
-		if err := s.Stop(); err != nil {
-			log.Printf("error stopping %v service: %v", s, err)
+	// Shutdown all services. Do it in reverse order, since there
+	// are dependencies between them.
+	for i := len(m.services) - 1; i >= 0; i-- {
+		if err := m.services[i].Stop(); err != nil {
+			log.Printf("error stopping %v service: %v", m.services[i], err)
 		}
 	}
 
@@ -68,13 +69,14 @@ func main() {
 	var (
 		metadataAddr = flag.String("metadata-addr", ":7001", "metadata service listening address")
 		metadataDB   = flag.String("metadata-db", "metadata.db", "metadata database")
-		metadataNS   = flag.String("metadata-ns", "", "RDF namespace (resource base URI)")
+		metadataNS   = flag.String("metadata-ns", "", "metadata namespace (RDF resource base URI)")
 	)
 
 	flag.Parse()
 
-	m := newMormorMain(
-		newMetadataService(*metadataAddr, *metadataDB, *metadataNS),
-	)
+	metadata := newMetadataService(*metadataAddr, *metadataDB, *metadataNS)
+
+	m := newMormorMain(metadata, enduser)
+
 	m.Run()
 }
