@@ -20,6 +20,7 @@ type metadataService struct {
 	ns          string
 	triplestore rdf.Graph
 	idcount     int32
+	//ontology  rdf.Ontology
 }
 
 func newMetadataService(addr, dbPath, ns string) *metadataService {
@@ -148,8 +149,8 @@ func (m *metadataService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		for i, r := range resources {
 			nodes[i] = rdf.NewNamedNode(m.ns + r)
 		}
-		w.Header().Set("Content-Type", "application/n-triples")
-		if err := m.triplestore.DescribeW(rdf.NewNTriplesEncoder(w), nodes...); err != nil {
+		//w.Header().Set("Content-Type", "application/n-triples")
+		if err := m.triplestore.DescribeW(rdf.NewNTriplesEncoder(w), rdf.DescForward, nodes...); err != nil {
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}

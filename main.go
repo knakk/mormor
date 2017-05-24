@@ -67,6 +67,7 @@ func newMormorMain(services ...service) *mormorMain {
 func main() {
 
 	var (
+		enduserAddr  = flag.String("enduser-addr", ":7000", "end-user service listening address")
 		metadataAddr = flag.String("metadata-addr", ":7001", "metadata service listening address")
 		metadataDB   = flag.String("metadata-db", "metadata.db", "metadata database")
 		metadataNS   = flag.String("metadata-ns", "", "metadata namespace (RDF resource base URI)")
@@ -75,6 +76,7 @@ func main() {
 	flag.Parse()
 
 	metadata := newMetadataService(*metadataAddr, *metadataDB, *metadataNS)
+	enduser := newEndUserService(*enduserAddr, metadata)
 
 	m := newMormorMain(metadata, enduser)
 
