@@ -4,7 +4,10 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"os"
+	"os/exec"
 	"sort"
+	"strings"
 
 	"github.com/knakk/kbp/rdf"
 	"github.com/knakk/kbp/rdf/memory"
@@ -43,6 +46,45 @@ func (e *enduserService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if len(r.URL.Path) < 2 {
 		http.NotFound(w, r)
+		return
+	}
+
+	if strings.HasSuffix(r.URL.Path[1:], ".rdf") {
+		if err := e.metadata.triplestore.DescribeW(rdf.NewNTriplesEncoder(w), rdf.DescSymmetricRecursive, rdf.NewNamedNode(r.URL.Path[1:len(r.URL.Path)-4])); err != nil {
+			log.Printf("%s desribe resource error: %v", r.URL.Path, err)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+		return
+	}
+
+	if strings.HasSuffix(r.URL.Path[1:], ".svg") {
+		uri := rdf.NewNamedNode(r.URL.Path[1 : len(r.URL.Path)-4])
+		g, err := e.metadata.triplestore.Describe(rdf.DescSymmetricRecursive, uri)
+		if err != nil {
+			log.Printf("%s desribe resource error: %v", r.URL.Path, err)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+		bnodeEdges := map[string][2]string{
+			"hasContribution": [2]string{"hasAgent", "hasRole"},
+		}
+
+		dot := g.(*memory.Graph).Dot(uri, memory.DotOptions{
+			Base:            "",
+			Inline:          []string{"hasLink"},
+			InlineWithLabel: map[string]string{"hasLiteraryForm": "hasName", "hasLanguage": "hasName"},
+			FullTypes:       []string{"Person", "Alias", "TranslationWork", "OriginalWork", "CollectionWork"},
+			BnodeEdges:      bnodeEdges})
+		cmd := exec.Command("dot", "-Tsvg")
+		cmd.Stdin = strings.NewReader(dot)
+		cmd.Stdout = w
+		cmd.Stderr = os.Stdout
+		if err := cmd.Run(); err != nil {
+			log.Println(err)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
 		return
 	}
 
@@ -115,6 +157,7 @@ func (e *enduserService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 type person struct {
+	ID               string   `rdf:"id"`
 	Name             string   `rdf:"->hasName"`
 	BirthYear        int      `rdf:"->hasBirthYear"`
 	DeathYear        int      `rdf:"->hasDeathYear"`
@@ -242,6 +285,10 @@ const (
 			<tbody>
 		</table>
 		{{end}}
+		<div>
+			<hr>
+			<p style="font-size:smaller">Vis metadata som <a href="/{{.ID}}.rdf">RDF</a> | <a href="/{{.ID}}.svg">SVG</a> </p>
+		</div>
 	</main>
 </body>
 </html>`
