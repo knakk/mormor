@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset=utf-8>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>{{.Work.Title}}</title>
+	<style>
+		*    { box-sizing: border-box }
+		html { font-family: Arial,sans-serif; line-height:1.15; -ms-text-size-adjust: 100%; -webkit-text-size-adjust: 100% }
+		body { margin: 0; }
+		main { max-width: 980px; margin: auto; padding-top: 2em; }
+
+		td { padding: 0 2em 0.7em 0;}
+		td { vertical-align: top; }
+
+		a:link,
+		a:visited { color: blue; }
+		a.no-blue-link { text-decoration: none; color: #000; }
+
+		.tag     { font-size: smaller; color: #777; text-transform: uppercase; background: #eee; border-radius: 3px; padding: 3px;}
+		.smaller { font-size: smaller;}
+		.grey    { color: #888; }
+
+		.book-cover-container { background-color: #e5e5e5; padding: 10px; width: 120px; height: 180px; }
+		.book-cover-img { width: 100px; }
+		.publication-focus { display: flex; align-items: flex-start; padding: 1em; background-color: #eee}
+		.publication-focus-details { align-self: flex-start; padding: 0 1em; }
+		.publication-focus-cover {}
+		.publication-list { display: flex; flex-wrap: wrap; }
+		.publication-list-item { padding: 0 2em 2em 0; width: 240px;}
+	</style>
+</head>
+<body>
+	<main>
+		<h1>{{.Work.Title}}{{if .Work.Authors}}<br/><span class="smaller">Av {{range .Work.Authors}}<a href="/{{.ID}}">{{.Name}}</a> {{end}}</span>{{end}}</h1>
+		<p><strong>Første gang utgitt:</strong> {{if gt .Work.FirstPubYear 0}}{{.Work.FirstPubYear}}{{else}}ukjent{{end}}</p>
+		<div class="publication-focus">
+			<div class="book-cover-container publication-focus-cover">
+				{{if .Selected.Image}}
+				<img src="/static/{{.Selected.Image}}" class="book-cover-img">
+				{{end}}
+			</div>
+			<div class="publication-focus-details">
+				<h3>{{range .Work.Authors}}{{.Name}} {{end}}<br/>{{.Selected.Title}}{{if .Selected.Subtitle}}<br/><em class="smaller">{{.Selected.Subtitle}}</em>{{end}}</h3>
+				<p>Utgitt i <strong>{{.Selected.PubYear}}</strong> av <a href="/{{.Selected.Publisher.ID}}">{{.Selected.Publisher.Name}}</a></p>
+				{{if .Selected.EditionNote}}<p>{{.Selected.EditionNote}}</p>{{end}}
+				<p>{{if .Selected.Binding}}{{.Selected.Binding}}{{end}}{{if gt .Selected.NumPages 0}}, {{.Selected.NumPages}} sider{{end}}</p>
+				{{if .Selected.Description}}
+				<strong>Omtale fra forlaget:</strong><br/>
+				{{.Selected.Description}}
+				{{end}}
+			</div>
+		</div>
+		{{if .Work.Publications}}
+		<h2>Andre utgaver ({{len .Work.Publications}})</h2>
+		{{with $work := .Work}}
+		<div class="publication-list">
+			{{range $work.Publications}}
+			<div class="publication-list-item">
+				<a class="no-blue-link" href="/{{$work.ID}}/{{.ID}}"><div class="publication-list-item">
+					<div class="book-cover-container">
+						{{if .Image}}<img src="/static/{{.Image}}" class="book-cover-img">{{end}}
+					</div>
+					<p><strong>{{.PubYear}}</strong><br/>{{.Publisher.Name}}</p>
+				</div></a>
+			</div>
+			{{end}}
+		</div>
+		{{end}}
+		{{end}}
+		<div>
+			<hr>
+			<p style="font-size:smaller">Vis metadata som <a href="/{{.Work.ID}}.rdf">RDF</a> | <a href="/{{.Work.ID}}.svg">SVG</a> </p>
+		</div>
+	</main>
+</body>
+</html>

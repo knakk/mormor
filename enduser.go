@@ -20,7 +20,7 @@ type enduserService struct {
 }
 
 func newEndUserService(addr string, metadata *metadataService) *enduserService {
-	templates := template.Must(template.New("Person").Parse(tmplPerson))
+	templates := template.Must(template.ParseGlob("templates/*.html"))
 	return &enduserService{
 		addr:      addr,
 		metadata:  metadata,
@@ -72,9 +72,9 @@ func (e *enduserService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		dot := g.(*memory.Graph).Dot(uri, memory.DotOptions{
 			Base:            "",
-			Inline:          []string{"hasLink"},
-			InlineWithLabel: map[string]string{"hasLiteraryForm": "hasName", "hasLanguage": "hasName"},
-			FullTypes:       []string{"Person", "Alias", "TranslationWork", "OriginalWork", "CollectionWork"},
+			Inline:          []string{"hasLink", "hasImage"},
+			InlineWithLabel: map[string]string{"hasLiteraryForm": "hasName", "hasLanguage": "hasName", "hasBinding": "hasName"},
+			FullTypes:       []string{"Person", "Corporation", "Publication", "Place", "Alias", "TranslationWork", "OriginalWork", "CollectionWork"},
 			BnodeEdges:      bnodeEdges})
 		cmd := exec.Command("dot", "-Tsvg")
 		cmd.Stdin = strings.NewReader(dot)
@@ -88,71 +88,125 @@ func (e *enduserService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	uri := rdf.NewNamedNode(r.URL.Path[1:])
-	g, err := e.metadata.triplestore.Describe(rdf.DescSymmetricRecursive, uri)
+	paths := strings.Split(r.URL.Path[1:], "/")
+	if len(paths) < 2 {
+		http.NotFound(w, r)
+		return
+	}
+
+	switch paths[0] {
+	case "person":
+		e.servePerson(w, r, strings.Join(paths, "/"))
+	case "work":
+		if len(paths) != 4 {
+			http.NotFound(w, r)
+			return
+		}
+		e.servePublication(w, r, strings.Join(paths[:2], "/"), strings.Join(paths[2:], "/"))
+	case "static":
+		http.ServeFile(w, r, strings.Join(paths, "/"))
+	default:
+		http.NotFound(w, r)
+	}
+}
+
+func (e *enduserService) servePerson(w http.ResponseWriter, r *http.Request, personID string) {
+	g, err := e.metadata.triplestore.Describe(rdf.DescSymmetricRecursive, rdf.NewNamedNode(personID))
 	if err != nil {
 		log.Printf("%s desribe resource error: %v", r.URL.Path, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
+	var p person
+	if err := g.(*memory.Graph).Decode(&p, rdf.NewNamedNode(personID), rdf.NewNamedNode("")); err != nil {
+		log.Printf("%s decode Person error: %v", r.URL.Path, err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
 
-	res, _ := g.Select([]rdf.Variable{rdf.NewVariable("type")}, rdf.TriplePattern{uri, rdf.RDFtype, rdf.NewVariable("type")})
-	if len(res) == 0 {
+	for _, work := range p.Works {
+		switch work.Type {
+		case "OriginalWork":
+			for _, contrib := range work.Contributions {
+				if contrib.Role == "forfatter" && contrib.Agent.ID != p.ID {
+					work.Authors = append(work.Authors, contrib.Agent)
+					if contrib.Alias != "" {
+						work.Alias = contrib.Alias
+					}
+				}
+			}
+			p.OriginalWorks = append(p.OriginalWorks, work)
+		case "CollectionWork":
+			p.Collections = append(p.Collections, work)
+		case "TranslationWork":
+			for _, contrib := range work.OriginalContributions {
+				if contrib.Role == "forfatter" {
+					work.OriginalAuthors = append(work.OriginalAuthors, contrib.Agent)
+				}
+			}
+			p.Translations = append(p.Translations, work)
+		}
+	}
+	sort.Slice(p.OriginalWorks, func(i, j int) bool {
+		return p.OriginalWorks[i].FirstPubYear < p.OriginalWorks[j].FirstPubYear
+	})
+	for y, _ := range p.OriginalWorks {
+		sort.Slice(p.OriginalWorks[y].Publications, func(i, j int) bool {
+			return p.OriginalWorks[y].Publications[i].PubYear > p.OriginalWorks[y].Publications[j].PubYear
+		})
+	}
+	for i, work := range p.WorksAbout {
+		for _, contrib := range work.Contributions {
+			if contrib.Role == "forfatter" {
+				p.WorksAbout[i].Authors = append(p.WorksAbout[i].Authors, contrib.Agent)
+			}
+		}
+	}
+	if err := e.templates.ExecuteTemplate(w, "person.html", p); err != nil {
+		log.Printf("%s Person template error: %v", r.URL.Path, err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+	}
+}
+
+func (e *enduserService) servePublication(w http.ResponseWriter, r *http.Request, workID, pubID string) {
+	g, err := e.metadata.triplestore.Describe(rdf.DescSymmetricRecursive, rdf.NewNamedNode(workID))
+	if err != nil {
+		log.Printf("%s desribe resource error: %v", r.URL.Path, err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	var wrk work
+	if err := g.(*memory.Graph).Decode(&wrk, rdf.NewNamedNode(workID), rdf.NewNamedNode("")); err != nil {
+		log.Printf("%s decode Work error: %v", r.URL.Path, err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	for _, contrib := range wrk.Contributions {
+		if contrib.Role == "forfatter" {
+			wrk.Authors = append(wrk.Authors, contrib.Agent)
+			if contrib.Alias != "" {
+				wrk.Alias = contrib.Alias
+			}
+		}
+	}
+	var selected publication
+	for i, p := range wrk.Publications {
+		if p.ID == pubID {
+			selected = p
+			wrk.Publications = append(wrk.Publications[:i], wrk.Publications[i+1:]...)
+			break
+		}
+	}
+	if selected.ID == "" {
 		http.NotFound(w, r)
 		return
 	}
-	switch res[0][0].(rdf.NamedNode).Name() {
-	case "Publication":
-	case "Work":
-	case "Corporation":
-	case "Person":
-		var p person
-		if err := g.(*memory.Graph).Decode(&p, uri, rdf.NewNamedNode("")); err != nil {
-			log.Printf("%s decode Person error: %v", r.URL.Path, err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
-		for _, work := range p.Works {
-			switch work.Type {
-			case "OriginalWork":
-				for _, contrib := range work.Contributions {
-					if contrib.Role == "forfatter" {
-						work.Authors = append(work.Authors, contrib.Agent)
-						if contrib.Alias != "" {
-							work.Alias = contrib.Alias
-						}
-					}
-				}
-				p.OriginalWorks = append(p.OriginalWorks, work)
-			case "CollectionWork":
-				p.Collections = append(p.Collections, work)
-			case "TranslationWork":
-				for _, contrib := range work.OriginalContributions {
-					if contrib.Role == "forfatter" {
-						work.OriginalAuthors = append(work.OriginalAuthors, contrib.Agent)
-					}
-				}
-				p.Translations = append(p.Translations, work)
-			}
-		}
-		sort.Slice(p.OriginalWorks, func(i, j int) bool {
-			return p.OriginalWorks[i].FirstPubYear < p.OriginalWorks[j].FirstPubYear
-		})
-		for i, work := range p.WorksAbout {
-			for _, contrib := range work.Contributions {
-				if contrib.Role == "forfatter" {
-					p.WorksAbout[i].Authors = append(p.WorksAbout[i].Authors, contrib.Agent)
-				}
-			}
-		}
-		if err := e.templates.Execute(w, p); err != nil {
-			log.Printf("%s Person template error: %v", r.URL.Path, err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
-	default:
-		http.NotFound(w, r)
-		return
+	if err := e.templates.ExecuteTemplate(w, "work.html", struct {
+		Selected publication
+		Work     work
+	}{Selected: selected, Work: wrk}); err != nil {
+		log.Printf("%s Work template error: %v", r.URL.Path, err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 }
 
@@ -180,10 +234,11 @@ type work struct {
 	OriginalContributions []contribution `rdf:"->isTranslationOf;>>hasContribution"`
 	Authors               []agent
 	Alias                 string
-	Title                 string   `rdf:"->hasMainTitle"`
-	FirstPubYear          int      `rdf:"->hasFirstPublicationYear"`
-	Forms                 []string `rdf:"->hasLiteraryForm;->hasName"`
-	OriginalForms         []string `rdf:"->isTranslationOf;->hasLiteraryForm;->hasName"`
+	Title                 string        `rdf:"->hasMainTitle"`
+	FirstPubYear          int           `rdf:"->hasFirstPublicationYear"`
+	Forms                 []string      `rdf:"->hasLiteraryForm;->hasName"`
+	OriginalForms         []string      `rdf:"->isTranslationOf;->hasLiteraryForm;->hasName"`
+	Publications          []publication `rdf:"<<isPublicationOf"`
 }
 
 type contribution struct {
@@ -192,104 +247,21 @@ type contribution struct {
 	Alias string `rdf:"->usingPseudonym;->hasName"`
 }
 
+type publication struct {
+	ID               string        `rdf:"id"`
+	Title            string        `rdf:"->hasMainTitle"`
+	Subtitle         string        `rdf:"->hasSubtitle"`
+	PubYear          int           `rdf:"->hasPublicationYear"`
+	Publisher        agent         `rdf:"->hasPublisher"`
+	PublicationPlace string        `rdf:"->hasPubliationPlace;->hasName"`
+	Binding          string        `rdf:"->hasBinding;->hasName"`
+	NumPages         uint          `rdf:"->hasNumPages"`
+	Image            string        `rdf:"->hasImage"`
+	Description      template.HTML `rdf:"->hasPublisherDescription"`
+	EditionNote      string        `rdf:"->hasEditionNote"`
+}
+
 type agent struct {
 	ID   string `rdf:"id"`
 	Name string `rdf:"->hasName"`
 }
-
-const (
-	tmplPerson = `
-<!doctype html>
-<html lang="en">
-<head>
-	<meta charset=utf-8>
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title>{{.Name}} {{if (or (gt .BirthYear 0) (gt .DeathYear 0))}}({{if (gt .BirthYear 0)}}{{.BirthYear}}{{end}}-{{if (gt .DeathYear 0)}}{{.DeathYear}}{{end}}){{end}}</title>
-	<style>
-		*    { box-sizing: border-box }
-		html { font-family: Arial,sans-serif; line-height:1.15; -ms-text-size-adjust: 100%; -webkit-text-size-adjust: 100% }
-		body { margin: 0; }
-		main { max-width: 980px; margin: auto; padding-top: 2em; }
-
-		td { padding: 0 2em 0.7em 0;}
-		td { vertical-align: top; }
-
-		a:link,
-		a:visited { color: blue; }
-
-		.tag     { font-size: smaller; color: #777; text-transform: uppercase; background: #eee; border-radius: 3px; padding: 3px;}
-		.smaller {color: #888; font-size: smaller;}
-	</style>
-</head>
-<body>
-	<main>
-		<h1>{{.Name}} {{if (or (gt .BirthYear 0) (gt .DeathYear 0))}}({{if (gt .BirthYear 0)}}{{.BirthYear}}{{end}}-{{if (gt .DeathYear 0)}}{{.DeathYear}}{{end}}){{end}}{{if .ShortDescription}}<br/><span class="smaller">{{.ShortDescription}}</span>{{end}}</h1>
-		<p>{{.LongDescription}}</p>
-
-		{{if .Works}}
-		<h2>Litterær produksjon</h2>
-		{{if .OriginalWorks}}
-		<h3>Originalverk</h3>
-		<table class="original-work-list">
-			<tbody>
-				{{- range .OriginalWorks}}
-				<tr>
-					<td>{{.FirstPubYear}}</td>
-					<td>{{.Title}}{{if .Alias}}<br/><span class="smaller">Som {{.Alias}}</span>{{end}}</td>
-					<td>{{range .Forms}}<span class="tag">{{.}}</span> {{end}}</td>
-				</tr>
-				{{- end}}
-			<tbody>
-		</table>
-		{{end}}
-		{{if .Collections}}
-		<h3>Samlinger</h3>
-		<table class="collections-work-list">
-			<tbody>
-				{{- range .Collections}}
-				<tr>
-					<td>{{.FirstPubYear}}</td>
-					<td><a href="/{{.ID}}">{{.Title}}</a></td>
-					<td>{{range .Forms}}<span class="tag">{{.}}</span> {{end}}</td>
-				</tr>
-				{{- end}}
-			<tbody>
-		</table>
-		{{end}}
-		{{if .Translations}}
-		<h3>Oversettelser</h3>
-		<table class="translation-work-list">
-			<tbody>
-				{{- range .Translations}}
-				<tr>
-					<td>{{.FirstPubYear}}</td>
-					<td><a href="/{{.ID}}">{{.Title}}</a>{{if .OriginalTitle}} av {{range .OriginalAuthors}}<a href="/{{.ID}}">{{.Name}}</a> {{end}}<br/><span class="smaller">{{.OriginalTitle}}</span>{{end}}</td>
-					<td>{{range .OriginalForms}}<span class="tag">{{.}}</span> {{end}}</td>
-				</tr>
-				{{- end}}
-			<tbody>
-		</table>
-		{{end}}
-		{{end}}
-		{{if .WorksAbout}}
-		<h2>Litteratur <em>om</em> {{.Name}}</h2>
-		<table class="about-work-list">
-			<tbody>
-				{{- range .WorksAbout}}
-				<tr>
-					<td>{{.FirstPubYear}}</td>
-					<td><a href="/{{.ID}}">{{.Title}}</a>{{if .Authors}} av {{range .Authors}}<a href="/{{.ID}}">{{.Name}}</a>{{end}}{{end}}</td>
-					<td>{{range .Forms}}<span class="tag">{{.}}</span> {{end}}</td>
-				</tr>
-				{{- end}}
-			<tbody>
-		</table>
-		{{end}}
-		<div>
-			<hr>
-			<p style="font-size:smaller">Vis metadata som <a href="/{{.ID}}.rdf">RDF</a> | <a href="/{{.ID}}.svg">SVG</a> </p>
-		</div>
-	</main>
-</body>
-</html>`
-)
