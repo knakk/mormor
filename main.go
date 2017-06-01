@@ -44,6 +44,7 @@ func (m *mormorMain) Run() {
 	case <-errors:
 		break
 	}
+	signal.Stop(interrupt)
 
 	log.Println("Mormor is shutting down.")
 
@@ -75,10 +76,11 @@ func main() {
 
 	flag.Parse()
 
+	search := newSearchService()
 	metadata := newMetadataService(*metadataAddr, *metadataDB, *metadataNS)
 	enduser := newEndUserService(*enduserAddr, metadata)
 
-	m := newMormorMain(metadata, enduser)
+	m := newMormorMain(search, metadata, enduser)
 
 	m.Run()
 }

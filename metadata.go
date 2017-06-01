@@ -12,23 +12,29 @@ import (
 
 	"github.com/knakk/kbp/rdf"
 	"github.com/knakk/kbp/rdf/disk"
+	"github.com/knakk/kbp/rdf/memory"
 )
 
 type metadataService struct {
-	addr        string
-	dbPath      string
-	ns          string
-	triplestore rdf.Graph
-	idcount     int32
+	addr          string
+	dbPath        string
+	ns            string
+	triplestore   rdf.Graph
+	searchService *searchService
+	indexingQueue chan rdf.NamedNode
+	idcount       int32
 	//ontology  rdf.Ontology
 }
 
 func newMetadataService(addr, dbPath, ns string) *metadataService {
-	return &metadataService{
-		addr:   addr,
-		dbPath: dbPath,
-		ns:     ns,
+	m := metadataService{
+		addr:          addr,
+		dbPath:        dbPath,
+		ns:            ns,
+		indexingQueue: make(chan rdf.NamedNode),
 	}
+	go m.processIndexingQueue()
+	return &m
 }
 
 func (m *metadataService) String() string { return "metadata" }
@@ -99,6 +105,27 @@ func (m *metadataService) nextID(resType string) string {
 	return string(dst)
 }
 
+func (m *metadataService) indexOnly(uri rdf.NamedNode) {
+	go func() {
+		m.indexingQueue <- uri
+	}()
+}
+
+func (m *metadataService) processIndexingQueue() {
+	for uri := range m.indexingQueue {
+		g, err := m.triplestore.Describe(rdf.DescSymmetricRecursive, uri)
+		if err != nil {
+			log.Printf("desribe resource %v error: %v", uri, err)
+			continue
+		}
+		if err := m.searchService.indexResourceFromGraph(uri, g.(*memory.Graph)); err != nil {
+			log.Printf("indexing %v error: %v", uri, err)
+			continue
+		}
+		log.Println("indexed " + uri.String())
+	}
+}
+
 func (m *metadataService) CreateResource(resType string, body io.Reader) (rdf.NamedNode, error) {
 	uri := rdf.NewNamedNode(m.ns + resType + "/" + m.nextID(resType))
 	trs := []rdf.Triple{
@@ -122,7 +149,14 @@ func (m *metadataService) CreateResource(resType string, body io.Reader) (rdf.Na
 			trs = append(trs, tr)
 		}
 	}
+
 	_, err = m.triplestore.Insert(trs...)
+
+	if err == nil {
+		// Since it's a new resource, we can safely assume it has no connected resource we also need to reindex.
+		m.indexOnly(uri)
+	}
+
 	return uri, err
 }
 

@@ -11,6 +11,7 @@ import (
 
 	"github.com/knakk/kbp/rdf"
 	"github.com/knakk/kbp/rdf/memory"
+	"github.com/knakk/mormor/entity"
 )
 
 type enduserService struct {
@@ -117,7 +118,7 @@ func (e *enduserService) servePerson(w http.ResponseWriter, r *http.Request, per
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	var p person
+	var p entity.Person
 	if err := g.(*memory.Graph).Decode(&p, rdf.NewNamedNode(personID), rdf.NewNamedNode("")); err != nil {
 		log.Printf("%s decode Person error: %v", r.URL.Path, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -128,7 +129,7 @@ func (e *enduserService) servePerson(w http.ResponseWriter, r *http.Request, per
 		switch work.Type {
 		case "OriginalWork":
 			for _, contrib := range work.Contributions {
-				if contrib.Role == "forfatter" && contrib.Agent.ID != p.ID {
+				if contrib.Role == "forfatter" && contrib.Agent.URI != p.ID() {
 					work.Authors = append(work.Authors, contrib.Agent)
 					if contrib.Alias != "" {
 						work.Alias = contrib.Alias
@@ -175,7 +176,7 @@ func (e *enduserService) servePublication(w http.ResponseWriter, r *http.Request
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	var wrk work
+	var wrk entity.WorkWithPublications
 	if err := g.(*memory.Graph).Decode(&wrk, rdf.NewNamedNode(workID), rdf.NewNamedNode("")); err != nil {
 		log.Printf("%s decode Work error: %v", r.URL.Path, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -189,79 +190,23 @@ func (e *enduserService) servePublication(w http.ResponseWriter, r *http.Request
 			}
 		}
 	}
-	var selected publication
+	var selected entity.Publication
 	for i, p := range wrk.Publications {
-		if p.ID == pubID {
+		if p.URI == pubID {
 			selected = p
 			wrk.Publications = append(wrk.Publications[:i], wrk.Publications[i+1:]...)
 			break
 		}
 	}
-	if selected.ID == "" {
+	if selected.URI == "" {
 		http.NotFound(w, r)
 		return
 	}
 	if err := e.templates.ExecuteTemplate(w, "work.html", struct {
-		Selected publication
-		Work     work
+		Selected entity.Publication
+		Work     entity.WorkWithPublications
 	}{Selected: selected, Work: wrk}); err != nil {
 		log.Printf("%s Work template error: %v", r.URL.Path, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
-}
-
-type person struct {
-	ID               string   `rdf:"id"`
-	Name             string   `rdf:"->hasName"`
-	BirthYear        int      `rdf:"->hasBirthYear"`
-	DeathYear        int      `rdf:"->hasDeathYear"`
-	ShortDescription string   `rdf:"->hasShortDescription"`
-	LongDescription  string   `rdf:"->hasDescription;->hasText"`
-	Links            []string `rdf:">>hasLink"`
-	Works            []work   `rdf:"<<hasAgent;<-hasContribution"`
-	OriginalWorks    []work
-	Translations     []work
-	Collections      []work
-	WorksAbout       []work `rdf:"<<hasSubject"`
-}
-
-type work struct {
-	ID                    string         `rdf:"id"`
-	Contributions         []contribution `rdf:">>hasContribution"`
-	Type                  string         `rdf:"->http://www.w3.org/1999/02/22-rdf-syntax-ns#type"`
-	OriginalTitle         string         `rdf:"->isTranslationOf;->hasMainTitle"`
-	OriginalAuthors       []agent
-	OriginalContributions []contribution `rdf:"->isTranslationOf;>>hasContribution"`
-	Authors               []agent
-	Alias                 string
-	Title                 string        `rdf:"->hasMainTitle"`
-	FirstPubYear          int           `rdf:"->hasFirstPublicationYear"`
-	Forms                 []string      `rdf:"->hasLiteraryForm;->hasName"`
-	OriginalForms         []string      `rdf:"->isTranslationOf;->hasLiteraryForm;->hasName"`
-	Publications          []publication `rdf:"<<isPublicationOf"`
-}
-
-type contribution struct {
-	Role  string `rdf:"->hasRole;->hasName"`
-	Agent agent  `rdf:"->hasAgent"`
-	Alias string `rdf:"->usingPseudonym;->hasName"`
-}
-
-type publication struct {
-	ID               string        `rdf:"id"`
-	Title            string        `rdf:"->hasMainTitle"`
-	Subtitle         string        `rdf:"->hasSubtitle"`
-	PubYear          int           `rdf:"->hasPublicationYear"`
-	Publisher        agent         `rdf:"->hasPublisher"`
-	PublicationPlace string        `rdf:"->hasPubliationPlace;->hasName"`
-	Binding          string        `rdf:"->hasBinding;->hasName"`
-	NumPages         uint          `rdf:"->hasNumPages"`
-	Image            string        `rdf:"->hasImage"`
-	Description      template.HTML `rdf:"->hasPublisherDescription"`
-	EditionNote      string        `rdf:"->hasEditionNote"`
-}
-
-type agent struct {
-	ID   string `rdf:"id"`
-	Name string `rdf:"->hasName"`
 }

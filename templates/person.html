@@ -12,8 +12,7 @@
 
 		table { border-collapse: collapse; }
 		th { text-align: left; font-size: smaller; border-bottom: 1px solid #000; background: #eee; text-transform: uppercase; padding-right: 1em;}
-		td { padding: 0.5em 2em 0.7em 0.2em; margin: 0;}
-		td { vertical-align: top; }
+		td { padding: 0.5em 1em 0.5em 0.2em; margin: 0; max-width: 20em; vertical-align: top;}
 
 		a:link,
 		a:visited { color: blue; }
@@ -44,39 +43,33 @@
 				{{- range .OriginalWorks}}{{with $work := .}}
 				<tr>
 					<td>{{.FirstPubYear}}</td>
-					<td>{{.Title}}<br/><span class="smaller">{{if .Alias}}Som {{.Alias}} {{end}}{{if .Authors}}Sammed med {{range .Authors}}<a href="/{{.ID}}">{{.Name}}</a> {{end}}{{end}}</span></td>
-					<td>{{range .Publications}}<a href="/{{$work.ID}}/{{.ID}}">{{.PubYear}}</a><br/>{{end}}</td>
+					<td>{{.Title}}<br/><span class="smaller">{{if .Alias}}Som {{.Alias}} {{end}}{{if .Authors}}Sammed med {{range .Authors}}<a href="/{{.URI}}">{{.Name}}</a> {{end}}{{end}}</span></td>
+					<td>{{range .Publications}}<a href="/{{$work.URI}}/{{.URI}}">{{.PubYear}}</a> {{end}}</td>
 					<td>{{range .Forms}}<span class="tag">{{.}}</span> {{end}}</td>
 				</tr>
 				{{end}}{{- end}}
-			<tbody>
-		</table>
-		{{end}}
-		{{if .Collections}}
-		<h3>Samlinger</h3>
-		<table class="collections-work-list">
-			<tbody>
+				{{if .Collections}}
+				<tr><td colspan="4"><h3>Samlinger</h3></td></tr>
 				{{- range .Collections}}
 				<tr>
 					<td>{{.FirstPubYear}}</td>
-					<td>{{if .Publications}}<a href="/{{.ID}}">{{.Title}}</a>{{else}}{{.Title}}{{end}}</td>
+					<td>{{if .Publications}}<a href="/{{.URI}}">{{.Title}}</a>{{else}}{{.Title}}{{end}}</td>
+					<td></td>
 					<td>{{range .Forms}}<span class="tag">{{.}}</span> {{end}}</td>
 				</tr>
 				{{- end}}
-			<tbody>
-		</table>
-		{{end}}
-		{{if .Translations}}
-		<h3>Oversettelser</h3>
-		<table class="translation-work-list">
-			<tbody>
+				{{end}}
+				{{if .Translations}}
+				<tr><td colspan="4"><h3>Oversettelser</h3></td></tr>
 				{{- range .Translations}}
 				<tr>
 					<td>{{.FirstPubYear}}</td>
-					<td>{{if .Publications}}<a href="/{{.ID}}">{{.Title}}</a>{{else}}{{.Title}}{{end}}{{if .OriginalTitle}} av {{range .OriginalAuthors}}<a href="/{{.ID}}">{{.Name}}</a> {{end}}<br/><span class="smaller">{{.OriginalTitle}}</span>{{end}}</td>
+					<td>{{if .Publications}}<a href="/{{.URI}}">{{.Title}}</a>{{else}}{{.Title}}{{end}}{{if .OriginalTitle}} av {{range .OriginalAuthors}}<a href="/{{.URI}}">{{.Name}}</a> {{end}}<br/><span class="smaller">{{.OriginalTitle}}</span>{{end}}</td>
+					<td></td>
 					<td>{{range .OriginalForms}}<span class="tag">{{.}}</span> {{end}}</td>
 				</tr>
 				{{- end}}
+				{{end}}
 			<tbody>
 		</table>
 		{{end}}
@@ -88,7 +81,7 @@
 				{{- range .WorksAbout}}
 				<tr>
 					<td>{{.FirstPubYear}}</td>
-					<td>{{if .Publications}}<a href="/{{.ID}}">{{.Title}}</a>{{else}}{{.Title}}{{end}}{{if .Authors}} av {{range .Authors}}<a href="/{{.ID}}">{{.Name}}</a>{{end}}{{end}}</td>
+					<td>{{if .Publications}}<a href="/{{.URI}}">{{.Title}}</a>{{else}}{{.Title}}{{end}}{{if .Authors}} av {{range .Authors}}<a href="/{{.URI}}">{{.Name}}</a>{{end}}{{end}}</td>
 					<td>{{range .Forms}}<span class="tag">{{.}}</span> {{end}}</td>
 				</tr>
 				{{- end}}
@@ -97,7 +90,7 @@
 		{{end}}
 		<div>
 			<hr>
-			<p style="font-size:smaller">Vis metadata som <a href="/{{.ID}}.rdf">RDF</a> | <a href="/{{.ID}}.svg">SVG</a> </p>
+			<p style="font-size:smaller">Vis metadata som <a href="/{{.URI}}.rdf">RDF</a> | <a href="/{{.URI}}.svg">SVG</a> </p>
 		</div>
 	</main>
 </body>

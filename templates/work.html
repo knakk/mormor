@@ -32,7 +32,7 @@
 </head>
 <body>
 	<main>
-		<h1>{{.Work.Title}}{{if .Work.Authors}}<br/><span class="smaller">Av {{range .Work.Authors}}<a href="/{{.ID}}">{{.Name}}</a> {{end}}</span>{{end}}</h1>
+		<h1>{{.Work.Title}}{{if .Work.Authors}}<br/><span class="smaller">Av {{range .Work.Authors}}<a href="/{{.URI}}">{{.Name}}</a> {{end}}</span>{{end}}</h1>
 		<p><strong>Første gang utgitt:</strong> {{if gt .Work.FirstPubYear 0}}{{.Work.FirstPubYear}}{{else}}ukjent{{end}}</p>
 		<div class="publication-focus">
 			<div class="book-cover-container publication-focus-cover">
@@ -42,7 +42,7 @@
 			</div>
 			<div class="publication-focus-details">
 				<h3>{{range .Work.Authors}}{{.Name}} {{end}}<br/>{{.Selected.Title}}{{if .Selected.Subtitle}}<br/><em class="smaller">{{.Selected.Subtitle}}</em>{{end}}</h3>
-				<p>Utgitt i <strong>{{.Selected.PubYear}}</strong> av <a href="/{{.Selected.Publisher.ID}}">{{.Selected.Publisher.Name}}</a></p>
+				<p>Utgitt i <strong>{{.Selected.PubYear}}</strong> av <a href="/{{.Selected.Publisher.URI}}">{{.Selected.Publisher.Name}}</a></p>
 				{{if .Selected.EditionNote}}<p>{{.Selected.EditionNote}}</p>{{end}}
 				<p>{{if .Selected.Binding}}{{.Selected.Binding}}{{end}}{{if gt .Selected.NumPages 0}}, {{.Selected.NumPages}} sider{{end}}</p>
 				{{if .Selected.Description}}
@@ -57,7 +57,7 @@
 		<div class="publication-list">
 			{{range $work.Publications}}
 			<div class="publication-list-item">
-				<a class="no-blue-link" href="/{{$work.ID}}/{{.ID}}"><div class="publication-list-item">
+				<a class="no-blue-link" href="/{{$work.URI}}/{{.URI}}"><div class="publication-list-item">
 					<div class="book-cover-container">
 						{{if .Image}}<img src="/static/{{.Image}}" class="book-cover-img">{{end}}
 					</div>
@@ -70,7 +70,7 @@
 		{{end}}
 		<div>
 			<hr>
-			<p style="font-size:smaller">Vis metadata som <a href="/{{.Work.ID}}.rdf">RDF</a> | <a href="/{{.Work.ID}}.svg">SVG</a> </p>
+			<p style="font-size:smaller">Vis metadata som <a href="/{{.Work.URI}}.rdf">RDF</a> | <a href="/{{.Work.URI}}.svg">SVG</a> </p>
 		</div>
 	</main>
 </body>
