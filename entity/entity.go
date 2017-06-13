@@ -138,6 +138,7 @@ type Publication struct {
 	Binding          string        `rdf:"->hasBinding;->hasName"`
 	NumPages         uint          `rdf:"->hasNumPages"`
 	Image            string        `rdf:"->hasImage"`
+	ISBN             []string      `rdf:">>hasISBN"`
 	Description      template.HTML `rdf:"->hasPublisherDescription"`
 	EditionNote      string        `rdf:"->hasEditionNote"`
 }

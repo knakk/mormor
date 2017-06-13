@@ -10,8 +10,9 @@
 		body { margin: 0; }
 		main { max-width: 980px; margin: auto; padding-top: 2em; }
 
-		td { padding: 0 2em 0.7em 0;}
-		td { vertical-align: top; }
+		table { border-collapse: collapse; }
+		th { text-align: left; font-size: smaller; border-bottom: 1px solid #000; background: #eee; text-transform: uppercase; padding-right: 1em;}
+		td { padding: 0.5em 1em 0.5em 0.2em; margin: 0; max-width: 20em; vertical-align: top;}
 
 		a:link,
 		a:visited { color: blue; }
@@ -22,12 +23,15 @@
 		.grey    { color: #888; }
 
 		.book-cover-container { background-color: #e5e5e5; padding: 10px; width: 120px; height: 180px; }
+		.book-cover-container-small { padding: 0 1em 0.5em 0; width: 70px; min-height: 50px;}
 		.book-cover-img { width: 100px; }
+		.book-cover-img-small { width: 50px; }
 		.publication-focus { display: flex; align-items: flex-start; padding: 1em; background-color: #eee}
 		.publication-focus-details { align-self: flex-start; padding: 0 1em; }
 		.publication-focus-cover {}
-		.publication-list { display: flex; flex-wrap: wrap; }
-		.publication-list-item { padding: 0 2em 2em 0; width: 240px;}
+		.publication-list { }
+		.publication-list-item { display: flex; align-items: flex-start;}
+		.dense { padding: 0; margin: 0 0 0.5em 0; }
 	</style>
 </head>
 <body>
@@ -55,22 +59,34 @@
 		<h2>Andre utgaver ({{len .Work.Publications}})</h2>
 		{{with $work := .Work}}
 		<div class="publication-list">
-			{{range $work.Publications}}
-			<div class="publication-list-item">
-				<a class="no-blue-link" href="/{{$work.URI}}/{{.URI}}"><div class="publication-list-item">
-					<div class="book-cover-container">
-						{{if .Image}}<img src="/static/{{.Image}}" class="book-cover-img">{{end}}
-					</div>
-					<p><strong>{{.PubYear}}</strong><br/>{{.Publisher.Name}}</p>
-				</div></a>
-			</div>
-			{{end}}
+			<table>
+				<thead>
+					<tr>
+						<th>År</th>
+						<th>Tittel</th>
+						<th>Utgiver</th>
+						<th>ISBN</th>
+						<th>Omfang</th>
+					</tr>
+				</thead>
+				<tbody>
+					{{range $work.Publications}}
+					<tr>
+						<td><a href="/{{$work.URI}}/{{.URI}}">{{.PubYear}}</a></td>
+						<td>{{.Title}}{{if .Subtitle}}<br/><span class="smaller">{{.Subtitle}}</span>{{end}}</td>
+						<td>{{.Publisher.Name}}</td>
+						<td>{{range .ISBN}}{{.}}<br/>{{end}}</td>
+						<td>{{if .Binding}}{{.Binding}}{{if gt .NumPages 0}}, {{end}}{{end}}{{if gt .NumPages 0}}{{.NumPages}}{{end}}</td>
+					</tr>
+					{{end}}
+				<tbody>
+			</table>
 		</div>
 		{{end}}
 		{{end}}
 		<div>
 			<hr>
-			<p style="font-size:smaller">Vis metadata som <a href="/{{.Work.URI}}.rdf">RDF</a> | <a href="/{{.Work.URI}}.svg">SVG</a> </p>
+			<p class="smaller">Vis metadata som <a href="/{{.Work.URI}}.rdf">RDF</a> | <a href="/{{.Work.URI}}.svg">SVG</a> </p>
 		</div>
 	</main>
 </body>
