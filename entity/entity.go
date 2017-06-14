@@ -2,6 +2,7 @@ package entity
 
 import (
 	"html/template"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -13,6 +14,8 @@ type Entity interface {
 	CanonicalTitle() string
 	Abstract() string
 	EntityType() Type
+	// Process performs any transformations on the entity object
+	Process()
 }
 
 type Type uint
@@ -148,7 +151,7 @@ type agent struct {
 	Name string `rdf:"->hasName"`
 }
 
-func (p Person) CanonicalTitle() string {
+func (p *Person) CanonicalTitle() string {
 	title := p.Name
 	if p.BirthYear > 0 || p.DeathYear > 0 {
 		title += " ("
@@ -164,15 +167,55 @@ func (p Person) CanonicalTitle() string {
 	return title
 }
 
-func (p Person) ID() string       { return p.URI }
-func (p Person) Abstract() string { return "" }
-func (p Person) EntityType() Type { return TypePerson }
+func (p *Person) ID() string       { return p.URI }
+func (p *Person) Abstract() string { return "" }
+func (p *Person) EntityType() Type { return TypePerson }
+func (p *Person) Process() {
+	for _, work := range p.Works {
+		switch work.Type {
+		case "OriginalWork":
+			for _, contrib := range work.Contributions {
+				if contrib.Role == "forfatter" && contrib.Agent.URI != p.ID() {
+					work.Authors = append(work.Authors, contrib.Agent)
+					if contrib.Alias != "" {
+						work.Alias = contrib.Alias
+					}
+				}
+			}
+			p.OriginalWorks = append(p.OriginalWorks, work)
+		case "CollectionWork":
+			p.Collections = append(p.Collections, work)
+		case "TranslationWork":
+			for _, contrib := range work.OriginalContributions {
+				if contrib.Role == "forfatter" {
+					work.OriginalAuthors = append(work.OriginalAuthors, contrib.Agent)
+				}
+			}
+			p.Translations = append(p.Translations, work)
+		}
+	}
+	sort.Slice(p.OriginalWorks, func(i, j int) bool {
+		return p.OriginalWorks[i].FirstPubYear < p.OriginalWorks[j].FirstPubYear
+	})
+	for y, _ := range p.OriginalWorks {
+		sort.Slice(p.OriginalWorks[y].Publications, func(i, j int) bool {
+			return p.OriginalWorks[y].Publications[i].PubYear > p.OriginalWorks[y].Publications[j].PubYear
+		})
+	}
+	for i, work := range p.WorksAbout {
+		for _, contrib := range work.Contributions {
+			if contrib.Role == "forfatter" {
+				p.WorksAbout[i].Authors = append(p.WorksAbout[i].Authors, contrib.Agent)
+			}
+		}
+	}
+}
 
-func (w Work) ID() string       { return w.URI }
-func (w Work) EntityType() Type { return TypeWork }
-func (w Work) Abstract() string { return "" }
+func (w *Work) ID() string       { return w.URI }
+func (w *Work) EntityType() Type { return TypeWork }
+func (w *Work) Abstract() string { return "" }
 
-func (w Work) CanonicalTitle() string {
+func (w *Work) CanonicalTitle() string {
 	title := w.Title
 
 	var authors []string
@@ -183,4 +226,15 @@ func (w Work) CanonicalTitle() string {
 		return strings.Join(authors, ",") + ": " + title
 	}
 	return title
+}
+
+func (w *Work) Process() {
+	for _, contrib := range w.Contributions {
+		if contrib.Role == "forfatter" {
+			w.Authors = append(w.Authors, contrib.Agent)
+			if contrib.Alias != "" {
+				w.Alias = contrib.Alias
+			}
+		}
+	}
 }

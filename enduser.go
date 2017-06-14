@@ -1,12 +1,10 @@
 package main
 
 import (
-	"html/template"
 	"log"
 	"net/http"
 	"os"
 	"os/exec"
-	"sort"
 	"strings"
 
 	"github.com/knakk/kbp/rdf"
@@ -15,17 +13,14 @@ import (
 )
 
 type enduserService struct {
-	addr      string
-	metadata  *metadataService
-	templates *template.Template
+	addr     string
+	metadata *metadataService
 }
 
 func newEndUserService(addr string, metadata *metadataService) *enduserService {
-	templates := template.Must(template.ParseGlob("templates/*.html"))
 	return &enduserService{
-		addr:      addr,
-		metadata:  metadata,
-		templates: templates,
+		addr:     addr,
+		metadata: metadata,
 	}
 }
 
@@ -124,46 +119,9 @@ func (e *enduserService) servePerson(w http.ResponseWriter, r *http.Request, per
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
+	p.Process()
 
-	for _, work := range p.Works {
-		switch work.Type {
-		case "OriginalWork":
-			for _, contrib := range work.Contributions {
-				if contrib.Role == "forfatter" && contrib.Agent.URI != p.ID() {
-					work.Authors = append(work.Authors, contrib.Agent)
-					if contrib.Alias != "" {
-						work.Alias = contrib.Alias
-					}
-				}
-			}
-			p.OriginalWorks = append(p.OriginalWorks, work)
-		case "CollectionWork":
-			p.Collections = append(p.Collections, work)
-		case "TranslationWork":
-			for _, contrib := range work.OriginalContributions {
-				if contrib.Role == "forfatter" {
-					work.OriginalAuthors = append(work.OriginalAuthors, contrib.Agent)
-				}
-			}
-			p.Translations = append(p.Translations, work)
-		}
-	}
-	sort.Slice(p.OriginalWorks, func(i, j int) bool {
-		return p.OriginalWorks[i].FirstPubYear < p.OriginalWorks[j].FirstPubYear
-	})
-	for y, _ := range p.OriginalWorks {
-		sort.Slice(p.OriginalWorks[y].Publications, func(i, j int) bool {
-			return p.OriginalWorks[y].Publications[i].PubYear > p.OriginalWorks[y].Publications[j].PubYear
-		})
-	}
-	for i, work := range p.WorksAbout {
-		for _, contrib := range work.Contributions {
-			if contrib.Role == "forfatter" {
-				p.WorksAbout[i].Authors = append(p.WorksAbout[i].Authors, contrib.Agent)
-			}
-		}
-	}
-	if err := e.templates.ExecuteTemplate(w, "person.html", p); err != nil {
+	if err := templates.ExecuteTemplate(w, "person.html", p); err != nil {
 		log.Printf("%s Person template error: %v", r.URL.Path, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
@@ -202,7 +160,7 @@ func (e *enduserService) servePublication(w http.ResponseWriter, r *http.Request
 		http.NotFound(w, r)
 		return
 	}
-	if err := e.templates.ExecuteTemplate(w, "work.html", struct {
+	if err := templates.ExecuteTemplate(w, "work.html", struct {
 		Selected entity.Publication
 		Work     entity.WorkWithPublications
 	}{Selected: selected, Work: wrk}); err != nil {

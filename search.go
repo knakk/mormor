@@ -52,7 +52,7 @@ func (s *searchService) indexResourceFromGraph(uri rdf.NamedNode, g *memory.Grap
 		if err := g.Decode(&p, uri, rdf.NewNamedNode("")); err != nil {
 			return fmt.Errorf("indexResourceFromGraph decode %s as Person error: %v", uri, err)
 		}
-		e = p
+		e = &p
 	/*case entity.TypePublication:
 	var p entity.PublicationWithWork
 	if err := g.Decode(&p, uri, rdf.NewNamedNode("")); err != nil {
@@ -65,7 +65,7 @@ func (s *searchService) indexResourceFromGraph(uri rdf.NamedNode, g *memory.Grap
 		if err := g.Decode(&w, uri, rdf.NewNamedNode("")); err != nil {
 			return fmt.Errorf("indexResourceFromGraph decode %s as Work error: %v", uri, err)
 		}
-		e = w
+		e = &w
 	default:
 		panic("TODO indexResourceFromGraph " + entity.TypeFromURI(uri).String())
 	}

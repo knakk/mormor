@@ -2,10 +2,16 @@ package main
 
 import (
 	"flag"
+	"html/template"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
+)
+
+// globals
+var (
+	templates = template.Must(template.ParseGlob("templates/*.html"))
 )
 
 type service interface {

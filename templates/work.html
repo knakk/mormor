@@ -76,7 +76,7 @@
 						<td>{{.Title}}{{if .Subtitle}}<br/><span class="smaller">{{.Subtitle}}</span>{{end}}</td>
 						<td>{{.Publisher.Name}}</td>
 						<td>{{range .ISBN}}{{.}}<br/>{{end}}</td>
-						<td>{{if .Binding}}{{.Binding}}{{if gt .NumPages 0}}, {{end}}{{end}}{{if gt .NumPages 0}}{{.NumPages}}{{end}}</td>
+						<td>{{if .Binding}}{{.Binding}}{{if gt .NumPages 0}}, {{end}}{{end}}{{if gt .NumPages 0}}{{.NumPages}} s.{{end}}</td>
 					</tr>
 					{{end}}
 				<tbody>
