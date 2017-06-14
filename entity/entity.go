@@ -9,17 +9,30 @@ import (
 	"github.com/knakk/kbp/rdf"
 )
 
+// Entity represents an entity.
 type Entity interface {
+
+	// ID is the URI of the entity
 	ID() string
+
+	// CanonicalTtile is the canonical title/name of the entity.
 	CanonicalTitle() string
+
+	// Abstract returns a textual representation of the entity.
 	Abstract() string
+
+	// EntityType returns the Type of the entity
 	EntityType() Type
-	// Process performs any transformations on the entity object
+
+	// Process performs transformations on the entity object. Usefull for
+	// extracting and structuring data in ways not possible using rdf struct tags.
 	Process()
 }
 
+// Type represents the type of an entity.
 type Type uint
 
+// Available Types:
 const (
 	typeInvalid Type = iota
 	TypePerson
@@ -28,6 +41,7 @@ const (
 	TypeWork
 )
 
+// String returns a string representation of a Type.
 func (t Type) String() string {
 	switch t {
 	case TypePerson:
