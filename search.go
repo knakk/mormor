@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/blevesearch/bleve"
 	"github.com/knakk/kbp/rdf"
@@ -29,19 +28,6 @@ type searchService struct {
 
 func newSearchService() *searchService {
 	return &searchService{}
-}
-
-func (s *searchService) String() string { return "search" }
-
-func (s *searchService) Start() error {
-	log.Println("starting search service")
-	return nil
-}
-
-func (s *searchService) Stop() error {
-	log.Println("shutting down search service")
-
-	return nil
 }
 
 func (s *searchService) indexResourceFromGraph(uri rdf.NamedNode, g *memory.Graph) error {

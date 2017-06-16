@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"html/template"
 	"log"
 	"os"
@@ -14,61 +15,60 @@ var (
 	templates = template.Must(template.ParseGlob("templates/*.html"))
 )
 
-type service interface {
-	String() string
-	Start() error
-	Stop() error
-}
-
 // mormorMain represents the main program execution.
 type mormorMain struct {
-	services []service
+	metadata *metadataService
+	enduser  *enduserService
 }
 
 func (m *mormorMain) Run() {
 
-	errors := make(chan error)
 	interrupt := make(chan os.Signal, 1)
+	errors := make(chan error)
 
 	signal.Notify(interrupt, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
 	log.Println("Mormor is starting.")
 
-	// Start all services.
-	for _, s := range m.services {
-		go func(s service) {
-			if err := s.Start(); err != nil {
-				log.Printf("error starting %v service: %v", s, err)
-				errors <- err
-			}
-		}(s)
-	}
+	go func() {
+		if err := m.metadata.Start(); err != nil {
+			errors <- fmt.Errorf("error starting metadata service: %v", err)
+		}
+	}()
+
+	go func() {
+		if err := m.enduser.Start(); err != nil {
+			errors <- fmt.Errorf("error starting enduser service: %v", err)
+		}
+	}()
 
 	select {
 	case <-interrupt:
 		break
-	case <-errors:
+	case err := <-errors:
+		log.Println(err)
 		break
 	}
+
 	signal.Stop(interrupt)
 
 	log.Println("Mormor is shutting down.")
 
-	// Shutdown all services. Do it in reverse order, since there
-	// are dependencies between them.
-	for i := len(m.services) - 1; i >= 0; i-- {
-		if err := m.services[i].Stop(); err != nil {
-			log.Printf("error stopping %v service: %v", m.services[i], err)
-		}
+	if err := m.enduser.Stop(); err != nil {
+		log.Printf("error stopping enduser service: %v", err)
+	}
+
+	if err := m.metadata.Stop(); err != nil {
+		log.Printf("error stopping metadata service: %v", err)
 	}
 
 }
 
-func newMormorMain(services ...service) *mormorMain {
-	m := mormorMain{
-		services: services,
+func newMormorMain(ms *metadataService, es *enduserService) *mormorMain {
+	return &mormorMain{
+		metadata: ms,
+		enduser:  es,
 	}
-	return &m
 }
 
 func main() {
@@ -78,15 +78,16 @@ func main() {
 		metadataAddr = flag.String("metadata-addr", ":7001", "metadata service listening address")
 		metadataDB   = flag.String("metadata-db", "metadata.db", "metadata database")
 		metadataNS   = flag.String("metadata-ns", "", "metadata namespace (RDF resource base URI)")
+		//adminAddr    = flag.String("admin-addr", ":7007", "admin interface listening address")
 	)
 
 	flag.Parse()
 
-	search := newSearchService()
 	metadata := newMetadataService(*metadataAddr, *metadataDB, *metadataNS)
+	metadata.searchService = newSearchService()
 	enduser := newEndUserService(*enduserAddr, metadata)
 
-	m := newMormorMain(search, metadata, enduser)
+	m := newMormorMain(metadata, enduser)
 
 	m.Run()
 }

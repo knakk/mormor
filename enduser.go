@@ -24,8 +24,6 @@ func newEndUserService(addr string, metadata *metadataService) *enduserService {
 	}
 }
 
-func (e *enduserService) String() string { return "end-user" }
-
 func (e *enduserService) Start() error {
 	log.Printf("starting end-user service listening at %s", e.addr)
 	return http.ListenAndServe(e.addr, e)

@@ -37,8 +37,6 @@ func newMetadataService(addr, dbPath, ns string) *metadataService {
 	return &m
 }
 
-func (m *metadataService) String() string { return "metadata" }
-
 func (m *metadataService) Start() error {
 	db, err := disk.Open(m.dbPath, m.ns)
 	if err != nil {
