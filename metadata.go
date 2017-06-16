@@ -13,6 +13,7 @@ import (
 	"github.com/knakk/kbp/rdf"
 	"github.com/knakk/kbp/rdf/disk"
 	"github.com/knakk/kbp/rdf/memory"
+	"github.com/knakk/mormor/entity"
 )
 
 type metadataService struct {
@@ -45,6 +46,7 @@ func (m *metadataService) Start() error {
 	m.triplestore = db
 
 	log.Printf("starting metadata service listening at %s", m.addr)
+	m.indexAll()
 	return http.ListenAndServe(m.addr, m)
 }
 
@@ -103,6 +105,28 @@ func (m *metadataService) nextID(resType string) string {
 	return string(dst)
 }
 
+func (m *metadataService) indexAll() error {
+	for _, t := range []entity.Type{entity.TypePerson, entity.TypeWork} {
+		if err := m.indexType(t); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (m *metadataService) indexType(t entity.Type) error {
+	uris, err := m.getEntities(t)
+	if err != nil {
+		return err
+	}
+	log.Printf("enqueuing %d entities of type %s for indexing", len(uris), t)
+	for _, uri := range uris {
+		m.indexOnly(uri.(rdf.NamedNode))
+	}
+	return nil
+}
+
 func (m *metadataService) indexOnly(uri rdf.NamedNode) {
 	go func() {
 		m.indexingQueue <- uri
@@ -122,6 +146,20 @@ func (m *metadataService) processIndexingQueue() {
 		}
 		log.Println("indexed " + uri.String())
 	}
+}
+
+func (m *metadataService) getEntities(t entity.Type) ([]rdf.Node, error) {
+	res, err := m.triplestore.Select(
+		[]rdf.Variable{rdf.NewVariable("r")},
+		rdf.TriplePattern{
+			rdf.NewVariable("r"),
+			rdf.RDFtype,
+			t.Class(),
+		})
+	if err != nil {
+		return nil, err
+	}
+	return res.AllBound(rdf.NewVariable("r")), nil
 }
 
 func (m *metadataService) CreateResource(resType string, body io.Reader) (rdf.NamedNode, error) {

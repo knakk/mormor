@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"os"
@@ -37,6 +38,11 @@ func (e *enduserService) Stop() error {
 
 func (e *enduserService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
+
+	if r.URL.Path == "/search" {
+		e.serveSearch(w, r)
+		return
+	}
 
 	if len(r.URL.Path) < 2 {
 		http.NotFound(w, r)
@@ -102,6 +108,22 @@ func (e *enduserService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.NotFound(w, r)
 	}
+}
+
+func (e *enduserService) serveSearch(w http.ResponseWriter, r *http.Request) {
+	if len(r.URL.Query()["q"]) != 1 {
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+	q := r.URL.Query()["q"][0]
+	res, err := e.metadata.searchService.queryAll(q)
+	if err != nil {
+		log.Printf("search query error %v", err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(res)
 }
 
 func (e *enduserService) servePerson(w http.ResponseWriter, r *http.Request, personID string) {

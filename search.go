@@ -27,7 +27,13 @@ type searchService struct {
 }
 
 func newSearchService() *searchService {
-	return &searchService{}
+	index, err := bleve.NewMemOnly(bleve.NewIndexMapping())
+	if err != nil {
+		panic(err)
+	}
+	return &searchService{
+		Index: index,
+	}
 }
 
 func (s *searchService) indexResourceFromGraph(uri rdf.NamedNode, g *memory.Graph) error {
@@ -67,6 +73,16 @@ func (s *searchService) indexResourceFromGraph(uri rdf.NamedNode, g *memory.Grap
 
 func (s *searchService) query(idx entity.Type, q string) (searchResults, error) {
 	query := bleve.NewQueryStringQuery("+Type:" + idx.String() + " +" + q)
+	req := bleve.NewSearchRequest(query)
+	res, err := s.Index.Search(req)
+	if err != nil {
+		return searchResults{}, err
+	}
+	return s.parseSearchResults(res)
+}
+
+func (s *searchService) queryAll(q string) (searchResults, error) {
+	query := bleve.NewQueryStringQuery(q)
 	req := bleve.NewSearchRequest(query)
 	res, err := s.Index.Search(req)
 	if err != nil {

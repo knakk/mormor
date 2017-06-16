@@ -41,6 +41,23 @@ const (
 	TypeWork
 )
 
+func (t Type) Class() rdf.NamedNode {
+	switch t {
+	case TypePerson:
+		return rdf.NewNamedNode("Person")
+	case TypeCorporation:
+		return rdf.NewNamedNode("Corporation")
+	case TypePublication:
+		return rdf.NewNamedNode("Publication")
+	case TypeWork:
+		return rdf.NewNamedNode("Work")
+	case typeInvalid:
+		fallthrough
+	default:
+		return rdf.NewNamedNode("invalid entity.Type")
+	}
+}
+
 // String returns a string representation of a Type.
 func (t Type) String() string {
 	switch t {
