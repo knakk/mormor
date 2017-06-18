@@ -74,7 +74,7 @@ func (e *enduserService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Base:            "",
 			Inline:          []string{"hasLink", "hasImage"},
 			InlineWithLabel: map[string]string{"hasLiteraryForm": "hasName", "hasLanguage": "hasName", "hasBinding": "hasName"},
-			FullTypes:       []string{"Person", "Corporation", "Publication", "Place", "Alias", "TranslationWork", "OriginalWork", "CollectionWork"},
+			FullTypes:       []string{"Person", "Corporation", "Publication", "Place", "Alias", "Work"},
 			BnodeEdges:      bnodeEdges})
 		cmd := exec.Command("dot", "-Tsvg")
 		cmd.Stdin = strings.NewReader(dot)
@@ -140,9 +140,11 @@ func (e *enduserService) servePerson(w http.ResponseWriter, r *http.Request, per
 		return
 	}
 	p.Process()
+	//spew.Dump(p)
+	//fmt.Printf("%+v\n", p)
 
-	if err := templates.ExecuteTemplate(w, "person.html", p); err != nil {
-		log.Printf("%s Person template error: %v", r.URL.Path, err)
+	if err := templates.ExecuteTemplate(w, "person.html", &p); err != nil {
+		log.Printf("%s: %v", r.URL.Path, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 }
@@ -156,17 +158,9 @@ func (e *enduserService) servePublication(w http.ResponseWriter, r *http.Request
 	}
 	var wrk entity.WorkWithPublications
 	if err := g.(*memory.Graph).Decode(&wrk, rdf.NewNamedNode(workID), rdf.NewNamedNode("")); err != nil {
-		log.Printf("%s decode Work error: %v", r.URL.Path, err)
+		log.Printf("%s: %v", r.URL.Path, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
-	}
-	for _, contrib := range wrk.Contributions {
-		if contrib.Role == "forfatter" {
-			wrk.Authors = append(wrk.Authors, contrib.Agent)
-			if contrib.Alias != "" {
-				wrk.Alias = contrib.Alias
-			}
-		}
 	}
 	var selected entity.Publication
 	for i, p := range wrk.Publications {
@@ -184,7 +178,7 @@ func (e *enduserService) servePublication(w http.ResponseWriter, r *http.Request
 		Selected entity.Publication
 		Work     entity.WorkWithPublications
 	}{Selected: selected, Work: wrk}); err != nil {
-		log.Printf("%s Work template error: %v", r.URL.Path, err)
+		log.Printf("%s: %v", r.URL.Path, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 }

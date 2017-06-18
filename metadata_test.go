@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -17,42 +16,8 @@ import (
 	"github.com/knakk/mormor/entity"
 )
 
-func decodeGraph(d *rdf.Decoder) (*memory.Graph, error) {
-	g := memory.NewGraph()
-	bnodeTriples := make(map[rdf.BlankNode][]rdf.Triple)
-
-	for tr, err := d.Decode(); err != io.EOF; tr, err = d.Decode() {
-		if err != nil {
-			return g, err
-		}
-		switch t := tr.Subject.(type) {
-		case rdf.BlankNode:
-			bnodeTriples[t] = append(bnodeTriples[t], tr)
-			continue
-		}
-		switch t := tr.Object.(type) {
-		case rdf.BlankNode:
-			bnodeTriples[t] = append(bnodeTriples[t], tr)
-			continue
-		}
-		if _, err := g.Insert(tr); err != nil {
-			return nil, err
-		}
-	}
-
-	// Insert triples with bnodes in batches by ID, so that they get assigned
-	// the same (new) blank node ID in the Graph
-	for _, trs := range bnodeTriples {
-		if _, err := g.Insert(trs...); err != nil {
-			return nil, err
-		}
-	}
-	return g, nil
-}
-
 func mustDecode(s string) *memory.Graph {
-	dec := rdf.NewDecoder(bytes.NewBufferString(s))
-	g, err := decodeGraph(dec)
+	g, err := memory.NewFromNTriples(bytes.NewBufferString(s))
 	if err != nil {
 		panic("mustDecode: " + err.Error())
 	}

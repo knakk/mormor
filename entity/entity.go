@@ -1,6 +1,7 @@
 package entity
 
 import (
+	"bytes"
 	"html/template"
 	"sort"
 	"strconv"
@@ -98,75 +99,79 @@ func TypeFromURI(uri rdf.NamedNode) Type {
 type Person struct {
 	URI              string                 `rdf:"id"`
 	Name             string                 `rdf:"->hasName"`
-	BirthYear        int                    `rdf:"->hasBirthYear"`
-	DeathYear        int                    `rdf:"->hasDeathYear"`
+	BirthDate        *Date                  `rdf:"->hasBirthDate"`
+	DeathDate        *Date                  `rdf:"->hasDeathDate"`
 	ShortDescription string                 `rdf:"->hasShortDescription"`
 	LongDescription  string                 `rdf:"->hasDescription;->hasText"`
 	Links            []string               `rdf:">>hasLink"`
 	Works            []WorkWithPublications `rdf:"<<hasAgent;<-hasContribution"`
-	OriginalWorks    []WorkWithPublications
-	Translations     []WorkWithPublications
-	Collections      []WorkWithPublications
 	WorksAbout       []WorkWithPublications `rdf:"<<hasSubject"`
 }
 
+type Date struct {
+	Year      int  `rdf:"->hasYear"`
+	YearLower int  `rdf:"->hasYearLower"`
+	YearUpper int  `rdf:"->hasYearUpper"`
+	Approx    bool `rdf:"->isApproximate"`
+}
+
+func (d Date) String() string {
+	if d.Year != 0 {
+		if d.Approx {
+			return "ca. " + strconv.Itoa(d.Year)
+		}
+		return strconv.Itoa(d.Year)
+	}
+	if d.YearLower != 0 {
+		if d.YearUpper-d.YearLower == 1 {
+			return strconv.Itoa(d.YearLower) + "/" + strconv.Itoa(d.YearUpper)
+		}
+		if d.YearUpper != 0 {
+			return strconv.Itoa(d.YearLower) + "-" + strconv.Itoa(d.YearUpper)
+		}
+		return "ca. " + strconv.Itoa(d.YearLower)
+	}
+	return ""
+}
+
 type Work struct {
-	URI                   string         `rdf:"id"`
-	Contributions         []contribution `rdf:">>hasContribution"`
-	Type                  string         `rdf:"->http://www.w3.org/1999/02/22-rdf-syntax-ns#type"`
-	OriginalTitle         string         `rdf:"->isTranslationOf;->hasMainTitle"`
-	OriginalAuthors       []agent
-	OriginalContributions []contribution `rdf:"->isTranslationOf;>>hasContribution"`
-	Authors               []agent
-	Alias                 string
-	Title                 string   `rdf:"->hasMainTitle"`
-	FirstPubYear          int      `rdf:"->hasFirstPublicationYear"`
-	Forms                 []string `rdf:"->hasLiteraryForm;->hasName"`
-	OriginalForms         []string `rdf:"->isTranslationOf;->hasLiteraryForm;->hasName"`
+	URI                  string                   `rdf:"id"`
+	Title                string                   `rdf:"->hasTitle"`
+	AltTitle             []string                 `rdf:">>hasAlternativeTitle"`
+	Language             string                   `rdf:"->hasLanguage"`
+	Contributions        []contribution           `rdf:">>hasContribution"`
+	TranslationOf        *WorkWithoutTranslations `rdf:"->isTranslationOf"`
+	FirstPublicationDate *Date                    `rdf:"->hasFirstPublicationDate"`
+	Forms                []string                 `rdf:"->hasLiteraryForm;->hasName"`
 }
 
 type WorkWithPublications struct {
-	URI                   string         `rdf:"id"`
-	Contributions         []contribution `rdf:">>hasContribution"`
-	Type                  string         `rdf:"->http://www.w3.org/1999/02/22-rdf-syntax-ns#type"`
-	OriginalTitle         string         `rdf:"->isTranslationOf;->hasMainTitle"`
-	OriginalAuthors       []agent
-	OriginalContributions []contribution `rdf:"->isTranslationOf;>>hasContribution"`
-	Authors               []agent
-	Alias                 string
-	Title                 string        `rdf:"->hasMainTitle"`
-	FirstPubYear          int           `rdf:"->hasFirstPublicationYear"`
-	Forms                 []string      `rdf:"->hasLiteraryForm;->hasName"`
-	OriginalForms         []string      `rdf:"->isTranslationOf;->hasLiteraryForm;->hasName"`
-	Publications          []Publication `rdf:"<<isPublicationOf"`
+	Work
+	Translations []WorkWithPublications `rdf:"<<isTranslationOf"`
+	Publications []Publication          `rdf:"<<isPublicationOf"`
+}
+
+type WorkWithoutTranslations struct {
+	Work
+	Publications []Publication `rdf:"<<isPublicationOf"`
 }
 
 type contribution struct {
-	Role  string `rdf:"->hasRole;->hasName"`
+	Role  string `rdf:"->hasRole"`
 	Agent agent  `rdf:"->hasAgent"`
 	Alias string `rdf:"->usingPseudonym;->hasName"`
 }
 
 type PublicationWithWork struct {
-	URI              string        `rdf:"id"`
-	Title            string        `rdf:"->hasMainTitle"`
-	Subtitle         string        `rdf:"->hasSubtitle"`
-	PubYear          int           `rdf:"->hasPublicationYear"`
-	Publisher        agent         `rdf:"->hasPublisher"`
-	PublicationPlace string        `rdf:"->hasPubliationPlace;->hasName"`
-	Binding          string        `rdf:"->hasBinding;->hasName"`
-	NumPages         uint          `rdf:"->hasNumPages"`
-	Image            string        `rdf:"->hasImage"`
-	Description      template.HTML `rdf:"->hasPublisherDescription"`
-	EditionNote      string        `rdf:"->hasEditionNote"`
-	Work             Work          `rdf:"->isPublicationOf"`
+	Publication
+	Work Work `rdf:"->isPublicationOf"`
 }
 
 type Publication struct {
 	URI              string        `rdf:"id"`
 	Title            string        `rdf:"->hasMainTitle"`
 	Subtitle         string        `rdf:"->hasSubtitle"`
-	PubYear          int           `rdf:"->hasPublicationYear"`
+	PublishYear      int           `rdf:"->hasPublishYear"`
 	Publisher        agent         `rdf:"->hasPublisher"`
 	PublicationPlace string        `rdf:"->hasPubliationPlace;->hasName"`
 	Binding          string        `rdf:"->hasBinding;->hasName"`
@@ -183,63 +188,61 @@ type agent struct {
 }
 
 func (p *Person) CanonicalTitle() string {
-	title := p.Name
-	if p.BirthYear > 0 || p.DeathYear > 0 {
-		title += " ("
-		if p.BirthYear > 0 {
-			title += strconv.Itoa(p.BirthYear)
-		}
-		title += "-"
-		if p.DeathYear > 0 {
-			title += strconv.Itoa(p.DeathYear)
-		}
-		title += ")"
+	var b bytes.Buffer
+	if err := tmplPersonTitle.Execute(&b, p); err != nil {
+		return err.Error()
 	}
-	return title
+	return b.String()
 }
 
 func (p *Person) ID() string       { return p.URI }
-func (p *Person) Abstract() string { return "" }
+func (p *Person) Abstract() string { return p.ShortDescription }
 func (p *Person) EntityType() Type { return TypePerson }
 func (p *Person) Process() {
-	for _, work := range p.Works {
-		switch work.Type {
-		case "OriginalWork":
-			for _, contrib := range work.Contributions {
-				if contrib.Role == "forfatter" && contrib.Agent.URI != p.ID() {
-					work.Authors = append(work.Authors, contrib.Agent)
-					if contrib.Alias != "" {
-						work.Alias = contrib.Alias
-					}
-				}
-			}
-			p.OriginalWorks = append(p.OriginalWorks, work)
-		case "CollectionWork":
-			p.Collections = append(p.Collections, work)
-		case "TranslationWork":
-			for _, contrib := range work.OriginalContributions {
-				if contrib.Role == "forfatter" {
-					work.OriginalAuthors = append(work.OriginalAuthors, contrib.Agent)
-				}
-			}
-			p.Translations = append(p.Translations, work)
-		}
-	}
-	sort.Slice(p.OriginalWorks, func(i, j int) bool {
-		return p.OriginalWorks[i].FirstPubYear < p.OriginalWorks[j].FirstPubYear
+	sort.Slice(p.Works, func(i, j int) bool {
+		return p.Works[i].FirstPublicationDate.Year > p.Works[j].FirstPublicationDate.Year
 	})
-	for y, _ := range p.OriginalWorks {
-		sort.Slice(p.OriginalWorks[y].Publications, func(i, j int) bool {
-			return p.OriginalWorks[y].Publications[i].PubYear > p.OriginalWorks[y].Publications[j].PubYear
-		})
+}
+
+func (p *Person) WorksOriginal() (res []WorkWithPublications) {
+	for _, w := range p.Works {
+		if !w.IsTranslation() {
+			res = append(res, w)
+		}
 	}
-	for i, work := range p.WorksAbout {
-		for _, contrib := range work.Contributions {
-			if contrib.Role == "forfatter" {
-				p.WorksAbout[i].Authors = append(p.WorksAbout[i].Authors, contrib.Agent)
+	return res
+}
+
+func (p *Person) WorksAs(role string, uri string) (res []WorkWithPublications) {
+	for _, w := range p.Works {
+		for _, c := range w.Contributions {
+			if c.Role == role && c.Agent.URI == uri {
+				res = append(res, w)
 			}
 		}
 	}
+	return res
+}
+
+func (w *WorkWithPublications) TranslationsLanguages() map[string]int {
+	if len(w.Translations) == 0 {
+		return nil
+	}
+	res := make(map[string]int)
+	for _, t := range w.Translations {
+		res[t.Language]++
+	}
+	return res
+}
+func (w *WorkWithPublications) TranslationsByLanguage() map[string][]WorkWithPublications {
+	if len(w.Translations) == 0 {
+		return nil
+	}
+	res := make(map[string][]WorkWithPublications)
+	for _, t := range w.Translations {
+		res[t.Language] = append(res[t.Language], t)
+	}
+	return res
 }
 
 func (w *Work) ID() string       { return w.URI }
@@ -247,25 +250,25 @@ func (w *Work) EntityType() Type { return TypeWork }
 func (w *Work) Abstract() string { return "" }
 
 func (w *Work) CanonicalTitle() string {
-	title := w.Title
-
-	var authors []string
-	for _, contrib := range w.Contributions {
-		authors = append(authors, contrib.Agent.Name)
+	var b bytes.Buffer
+	if err := tmplWorkTitle.Execute(&b, w); err != nil {
+		return err.Error()
 	}
-	if len(authors) > 0 {
-		return strings.Join(authors, ",") + ": " + title
-	}
-	return title
+	return b.String()
 }
 
 func (w *Work) Process() {
+	/*for _, c := range w.OriginalContributions {
+		w.Contributions = append(w.Contributions, c)
+	}*/
+}
+func (w *Work) ContribsBy(role string) (c []contribution) {
 	for _, contrib := range w.Contributions {
-		if contrib.Role == "forfatter" {
-			w.Authors = append(w.Authors, contrib.Agent)
-			if contrib.Alias != "" {
-				w.Alias = contrib.Alias
-			}
+		if contrib.Role == role {
+			c = append(c, contrib)
 		}
 	}
+	return c
 }
+
+func (w *Work) IsTranslation() bool { return w.TranslationOf != nil }

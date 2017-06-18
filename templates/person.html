@@ -3,14 +3,14 @@
 <head>
 	<meta charset=utf-8>
 	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title>{{.Name}} {{if (or (gt .BirthYear 0) (gt .DeathYear 0))}}({{if (gt .BirthYear 0)}}{{.BirthYear}}{{end}}-{{if (gt .DeathYear 0)}}{{.DeathYear}}{{end}}){{end}}</title>
+	<title>{{.Name}}{{if (or .BirthDate .DeathDate)}} ({{if .BirthDate}}{{.BirthDate}}{{end}}-{{if .DeathDate}}{{.DeathDate}}{{end}}){{end}}</title>
 	<style>
 		*    { box-sizing: border-box }
 		html { font-family: Arial,sans-serif; line-height:1.15; -ms-text-size-adjust: 100%; -webkit-text-size-adjust: 100% }
 		body { margin: 0; }
 		main { max-width: 980px; margin: auto; padding-top: 2em; }
 
-		table { border-collapse: collapse; }
+		table { border-collapse: collapse; width: 100%;}
 		th { text-align: left; font-size: smaller; border-bottom: 1px solid #000; background: #eee; text-transform: uppercase; padding-right: 1em;}
 		td { padding: 0.5em 1em 0.5em 0.2em; margin: 0; max-width: 20em; vertical-align: top;}
 
@@ -18,17 +18,19 @@
 		a:visited { color: blue; }
 
 		.tag     { font-size: smaller; color: #777; text-transform: uppercase; background: #eee; border-radius: 3px; padding: 3px;}
-		.smaller {color: #888; font-size: smaller;}
+		.smaller { font-size: smaller;}
+		.grey    { color: #888; }
+		p.dense  { padding: 0; margin: 0 0 0.5em 0; }
 	</style>
 </head>
 <body>
 	<main>
-		<h1>{{.Name}} {{if (or (gt .BirthYear 0) (gt .DeathYear 0))}}({{if (gt .BirthYear 0)}}{{.BirthYear}}{{end}}-{{if (gt .DeathYear 0)}}{{.DeathYear}}{{end}}){{end}}{{if .ShortDescription}}<br/><span class="smaller">{{.ShortDescription}}</span>{{end}}</h1>
+		<h1>{{.Name}}{{if (or .BirthDate .DeathDate)}} ({{if .BirthDate}}{{.BirthDate}}{{end}}-{{if .DeathDate}}{{.DeathDate}}{{end}}){{end}}{{if .ShortDescription}}<br/><span class="smaller grey">{{.ShortDescription}}</span>{{end}}</h1>
 		<p>{{.LongDescription}}</p>
 
 		{{if .Works}}
 		<h2>Litterær produksjon</h2>
-		{{if .OriginalWorks}}
+		{{if .WorksAs "role/author" .URI}}
 		<h3>Originalverk</h3>
 		<table class="original-work-list">
 			<thead>
@@ -40,36 +42,162 @@
 				</tr>
 			</thead>
 			<tbody>
-				{{- range .OriginalWorks}}{{with $work := .}}
+				{{- range .WorksAs "role/author" .URI}}{{with $work := .}}
 				<tr>
-					<td>{{.FirstPubYear}}</td>
-					<td>{{.Title}}<br/><span class="smaller">{{if .Alias}}Som {{.Alias}} {{end}}{{if .Authors}}Sammed med {{range .Authors}}<a href="/{{.URI}}">{{.Name}}</a> {{end}}{{end}}</span></td>
-					<td>{{range .Publications}}<a href="/{{$work.URI}}/{{.URI}}">{{.PubYear}}</a> {{end}}</td>
-					<td>{{range .Forms}}<span class="tag">{{.}}</span> {{end}}</td>
+					<td>
+						{{- .FirstPublicationDate -}}
+					</td>
+					<td>
+						{{- .Title }}<br/>
+						<span class="smaller">
+						{{- if .AltTitle -}}
+							<strong>Også kjent som:</strong>
+							{{- range $i, $t := .AltTitle}}{{if $i}} / {{end}}{{$t}}{{end -}}
+						{{- end -}}
+						</span>
+					</td>
+					<td>
+						{{range .Publications}} <a href="/{{$work.URI}}/{{.URI}}">{{.PublishYear}}</a>{{end}}
+					</td>
+					<td>
+						{{- range .Forms -}}
+							<span class="tag">{{.}}</span>
+						{{- end -}}
+					</td>
+				</tr>
+				{{ if .TranslationsLanguages -}}
+					</tbody>
+					<tbody>
+						<tr>
+							<td></td>
+							<td colspan="3">
+								{{ range $lang, $count := .TranslationsLanguages }}
+									<a href="#{{$work}}/{{$lang}}">{{$lang}} ({{$count}})</a>
+								{{ end }}
+							</td>
+						</tr>
+					</tbody>
+					<tbody>
+				{{ end }}
+				{{- range $lang, $translations := .TranslationsByLanguage -}}
+				<tr>
+					<td colspan="4">{{$lang}}</td>
+				</tr>
+				{{- range $t := $translations -}}
+					<tr>
+						<td></td>
+						<td>
+							{{- .Title }}<br/>
+							<span class="smaller">
+							{{- if .AltTitle -}}
+								<strong>Også kjent som:</strong>
+								{{- range $i, $t := .AltTitle}}{{if $i}} / {{end}}{{$t}}{{end -}}
+							{{- end -}}
+							<p class="dense">
+								{{- if .ContribsBy "role/translator"}}
+									<span class="smaller"><strong>Oversatt av </strong>
+										{{range $i, $w := .ContribsBy "role/translator"}}
+											{{if $i}}, {{end}}
+											<a href="/{{$w.Agent.URI}}">{{$w.Agent.Name}}</a>
+										{{end}}
+									</span>
+								{{- end}}<br/>
+								{{- if .ContribsBy "role/illustrator"}}
+									<span class="smaller"><strong>Illustrert av </strong>
+										{{range $i, $w := .ContribsBy "role/illustrator"}}
+											{{if $i}}, {{end}}
+											<a href="/{{$w.Agent.URI}}">{{$w.Agent.Name}}</a>
+										{{end}}
+									</span>
+								{{- end}}
+							</p>
+							</span>
+						</td>
+						<td>
+							{{range .Publications}} <a href="/{{$work.URI}}/{{.URI}}">{{.PublishYear}}</a>{{end}}
+						</td>
+						<td>
+						</td>
+					</tr>
+					{{end}}{{end}}
+				{{end}}{{- end}}
+			<tbody>
+		</table>
+		{{end}}
+		{{if .WorksAs "role/translator" .URI}}
+		<h3>Oversettelser</h3>
+		<table class="translations-work-list">
+			<thead>
+				<tr>
+					<th>År</th>
+					<th>Tittel</th>
+					<th>Utgaver</th>
+					<th>Form</th>
+				</tr>
+			</thead>
+			<tbody>
+				{{- range .WorksAs "role/translator" .URI}}{{with $work := .}}
+				<tr>
+					<td>
+						{{- .FirstPublicationDate -}}
+					</td>
+					<td>
+						{{- .Title }}<br/>
+						<span class="smaller">
+						{{- if .AltTitle -}}
+							<strong>Også kjent som:</strong>
+							{{- range $i, $t := .AltTitle}}{{if $i}} / {{end}}{{$t}}{{end -}}
+						{{- end -}}
+						<strong>{{if .TranslationOf.ContribsBy "role/author"}}{{range $i, $a := .TranslationOf.ContribsBy "role/author"}}{{if $i}}, {{end}}<a href="/{{.Agent.URI}}">{{.Agent.Name}}</a>{{end}}: {{end}}{{.TranslationOf.Title}} ({{.TranslationOf.FirstPublicationDate}})</strong>
+						</span>
+					</td>
+					<td>{{range .Publications}} <a href="/{{$work.URI}}/{{.URI}}">{{.PublishYear}}</a>{{end}}</td>
+					<td>
+						{{- range .TranslationOf.Forms -}}
+							<span class="tag">{{.}}</span>
+						{{- end -}}
+					</td>
 				</tr>
 				{{end}}{{- end}}
-				{{if .Collections}}
-				<tr><td colspan="4"><h3>Samlinger</h3></td></tr>
-				{{- range .Collections}}
+			<tbody>
+		</table>
+		{{end}}
+		{{if .WorksAs "role/illustrator" .URI}}
+		<h3>Illustrasjoner</h3>
+		<table class="translations-work-list">
+			<thead>
 				<tr>
-					<td>{{.FirstPubYear}}</td>
-					<td>{{if .Publications}}<a href="/{{.URI}}">{{.Title}}</a>{{else}}{{.Title}}{{end}}</td>
-					<td></td>
-					<td>{{range .Forms}}<span class="tag">{{.}}</span> {{end}}</td>
+					<th>År</th>
+					<th>Tittel</th>
+					<th>Utgaver</th>
+					<th>Form</th>
 				</tr>
-				{{- end}}
-				{{end}}
-				{{if .Translations}}
-				<tr><td colspan="4"><h3>Oversettelser</h3></td></tr>
-				{{- range .Translations}}
+			</thead>
+			<tbody>
+				{{- range .WorksAs "role/illustrator" .URI}}{{with $work := .}}
 				<tr>
-					<td>{{.FirstPubYear}}</td>
-					<td>{{if .Publications}}<a href="/{{.URI}}">{{.Title}}</a>{{else}}{{.Title}}{{end}}{{if .OriginalTitle}} av {{range .OriginalAuthors}}<a href="/{{.URI}}">{{.Name}}</a> {{end}}<br/><span class="smaller">{{.OriginalTitle}}</span>{{end}}</td>
-					<td></td>
-					<td>{{range .OriginalForms}}<span class="tag">{{.}}</span> {{end}}</td>
+					<td>
+						{{- .FirstPublicationDate -}}
+					</td>
+					<td>
+						{{- .Title }}<br/>
+						<span class="smaller">
+						{{- if .AltTitle -}}
+							<strong>Også kjent som: </strong>
+							{{- range $i, $t := .AltTitle}}{{if $i}} / {{end}}{{$t}}{{end -}}
+						{{- end -}}
+						<strong>{{if .TranslationOf.ContribsBy "role/author"}}{{range $i, $a := .TranslationOf.ContribsBy "role/author"}}{{if $i}}, {{end}}<a href="/{{.Agent.URI}}">{{.Agent.Name}}</a>{{end}}: {{end}}{{.TranslationOf.Title}} ({{.TranslationOf.FirstPublicationDate}})</strong>
+						</span>
+					</td>
+					<td>{{range .Publications}}TODO publication{{end}}{{range $t := .Translations}}<p class="dense">{{if gt (len .Publications) 1}}TODO more than one publication{{else if eq (len .Publications) 1}}{{with $p := (index .Publications 0)}}<a href="/{{$t.URI}}/{{$p.URI}}">{{.Title}} ({{$p.PublishYear}})</a>{{end}}{{else}}{{.Title}} ({{.FirstPublicationDate}}){{end}}<br/>
+					{{- if .ContribsBy "role/translator"}}<span class="smaller"><strong>Oversatt av </strong>{{range $i, $w := .ContribsBy "role/translator"}}{{if $i}}, {{end}}<a href="/{{$w.Agent.URI}}">{{$w.Agent.Name}}</a>{{end}}</span>{{- end}}<br/>{{- if .ContribsBy "role/illustrator"}}<span class="smaller"><strong>Illustrert av </strong>{{range $i, $w := .ContribsBy "role/illustrator"}}{{if $i}}, {{end}}<a href="/{{$w.Agent.URI}}">{{$w.Agent.Name}}</a>{{end}}</span>{{- end}}</p>{{end}}</td>
+					<td>
+						{{- range .Forms -}}
+							<span class="tag">{{.}}</span>
+						{{- end -}}
+					</td>
 				</tr>
-				{{- end}}
-				{{end}}
+				{{end}}{{- end}}
 			<tbody>
 		</table>
 		{{end}}
@@ -81,7 +209,7 @@
 				{{- range .WorksAbout}}
 				<tr>
 					<td>{{.FirstPubYear}}</td>
-					<td>{{if .Publications}}<a href="/{{.URI}}">{{.Title}}</a>{{else}}{{.Title}}{{end}}{{if .Authors}} av {{range .Authors}}<a href="/{{.URI}}">{{.Name}}</a>{{end}}{{end}}</td>
+					<td>{{if .Publications}}<a href="/{{.URI}}">{{.Title}}</a>{{else}}{{.Title}}{{end}}{{if .ContribsBy "role/author"}} av {{range .ContribsBy "role/author"}}<a href="/{{.URI}}">{{.Name}}</a>{{end}}{{end}}</td>
 					<td>{{range .Forms}}<span class="tag">{{.}}</span> {{end}}</td>
 				</tr>
 				{{- end}}

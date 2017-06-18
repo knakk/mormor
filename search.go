@@ -44,6 +44,7 @@ func (s *searchService) indexResourceFromGraph(uri rdf.NamedNode, g *memory.Grap
 		if err := g.Decode(&p, uri, rdf.NewNamedNode("")); err != nil {
 			return fmt.Errorf("indexResourceFromGraph decode %s as Person error: %v", uri, err)
 		}
+		p.Process()
 		e = &p
 	/*case entity.TypePublication:
 	var p entity.PublicationWithWork
@@ -57,6 +58,7 @@ func (s *searchService) indexResourceFromGraph(uri rdf.NamedNode, g *memory.Grap
 		if err := g.Decode(&w, uri, rdf.NewNamedNode("")); err != nil {
 			return fmt.Errorf("indexResourceFromGraph decode %s as Work error: %v", uri, err)
 		}
+		w.Process()
 		e = &w
 	default:
 		panic("TODO indexResourceFromGraph " + entity.TypeFromURI(uri).String())
@@ -93,7 +95,7 @@ func (s *searchService) queryAll(q string) (searchResults, error) {
 
 func (s *searchService) parseSearchResults(res *bleve.SearchResult) (searchResults, error) {
 	parsed := searchResults{
-		NumHits: res.Hits.Len(),
+		NumHits: int(res.Total),
 		Hits:    make([]doc, 0, res.Hits.Len()),
 	}
 	for _, hit := range res.Hits {
