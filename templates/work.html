@@ -4,35 +4,7 @@
 	<meta charset=utf-8>
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>{{.Work.Title}}</title>
-	<style>
-		*    { box-sizing: border-box }
-		html { font-family: Arial,sans-serif; line-height:1.15; -ms-text-size-adjust: 100%; -webkit-text-size-adjust: 100% }
-		body { margin: 0; }
-		main { max-width: 980px; margin: auto; padding-top: 2em; }
-
-		table { border-collapse: collapse; }
-		th { text-align: left; font-size: smaller; border-bottom: 1px solid #000; background: #eee; text-transform: uppercase; padding-right: 1em;}
-		td { padding: 0.5em 1em 0.5em 0.2em; margin: 0; max-width: 20em; vertical-align: top;}
-
-		a:link,
-		a:visited { color: blue; }
-		a.no-blue-link { text-decoration: none; color: #000; }
-
-		.tag     { font-size: smaller; color: #777; text-transform: uppercase; background: #eee; border-radius: 3px; padding: 3px;}
-		.smaller { font-size: smaller;}
-		.grey    { color: #888; }
-
-		.book-cover-container { background-color: #e5e5e5; padding: 10px; width: 120px; height: 180px; }
-		.book-cover-container-small { padding: 0 1em 0.5em 0; width: 70px; min-height: 50px;}
-		.book-cover-img { width: 100px; }
-		.book-cover-img-small { width: 50px; }
-		.publication-focus { display: flex; align-items: flex-start; padding: 1em; background-color: #eee}
-		.publication-focus-details { align-self: flex-start; padding: 0 1em; }
-		.publication-focus-cover {}
-		.publication-list { }
-		.publication-list-item { display: flex; align-items: flex-start;}
-		.dense { padding: 0; margin: 0 0 0.5em 0; }
-	</style>
+	<link href="/static/mormor.css" media="all" rel="stylesheet" />
 </head>
 <body>
 	<main>
@@ -89,5 +61,6 @@
 			<p class="smaller">Vis metadata som <a href="/{{.Work.URI}}.rdf">RDF</a> | <a href="/{{.Work.URI}}.svg">SVG</a> </p>
 		</div>
 	</main>
+<script src="/static/mormor.js" type="text/javascript"></script>
 </body>
 </html>
