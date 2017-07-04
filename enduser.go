@@ -15,12 +15,14 @@ import (
 
 type enduserService struct {
 	addr     string
+	langs    []string
 	metadata *metadataService
 }
 
-func newEndUserService(addr string, metadata *metadataService) *enduserService {
+func newEndUserService(addr string, langs string, metadata *metadataService) *enduserService {
 	return &enduserService{
 		addr:     addr,
+		langs:    strings.Split(langs, ","),
 		metadata: metadata,
 	}
 }
@@ -134,7 +136,7 @@ func (e *enduserService) servePerson(w http.ResponseWriter, r *http.Request, per
 		return
 	}
 	var p entity.Person
-	if err := g.(*memory.Graph).Decode(&p, rdf.NewNamedNode(personID), rdf.NewNamedNode("")); err != nil {
+	if err := g.(*memory.Graph).Decode(&p, rdf.NewNamedNode(personID), rdf.NewNamedNode(""), e.langs); err != nil {
 		log.Printf("%s decode Person error: %v", r.URL.Path, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
@@ -157,7 +159,7 @@ func (e *enduserService) servePublication(w http.ResponseWriter, r *http.Request
 		return
 	}
 	var wrk entity.WorkWithPublications
-	if err := g.(*memory.Graph).Decode(&wrk, rdf.NewNamedNode(workID), rdf.NewNamedNode("")); err != nil {
+	if err := g.(*memory.Graph).Decode(&wrk, rdf.NewNamedNode(workID), rdf.NewNamedNode(""), e.langs); err != nil {
 		log.Printf("%s: %v", r.URL.Path, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return

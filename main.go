@@ -75,6 +75,7 @@ func main() {
 
 	var (
 		enduserAddr  = flag.String("enduser-addr", ":7000", "end-user service listening address")
+		enduserLang  = flag.String("enduser-lang", "no", "end-user default language(s)")
 		metadataAddr = flag.String("metadata-addr", ":7001", "metadata service listening address")
 		metadataDB   = flag.String("metadata-db", "metadata.db", "metadata database")
 		metadataNS   = flag.String("metadata-ns", "", "metadata namespace (RDF resource base URI)")
@@ -84,8 +85,8 @@ func main() {
 	flag.Parse()
 
 	metadata := newMetadataService(*metadataAddr, *metadataDB, *metadataNS)
-	metadata.searchService = newSearchService()
-	enduser := newEndUserService(*enduserAddr, metadata)
+	metadata.searchService = newSearchService(*enduserLang)
+	enduser := newEndUserService(*enduserAddr, *enduserLang, metadata)
 
 	m := newMormorMain(metadata, enduser)
 

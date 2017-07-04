@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/blevesearch/bleve"
 	"github.com/knakk/kbp/rdf"
@@ -24,15 +25,17 @@ type searchResults struct {
 
 type searchService struct {
 	Index bleve.Index
+	langs []string
 }
 
-func newSearchService() *searchService {
+func newSearchService(langs string) *searchService {
 	index, err := bleve.NewMemOnly(bleve.NewIndexMapping())
 	if err != nil {
 		panic(err)
 	}
 	return &searchService{
 		Index: index,
+		langs: strings.Split(langs, ","),
 	}
 }
 
@@ -41,7 +44,7 @@ func (s *searchService) indexResourceFromGraph(uri rdf.NamedNode, g *memory.Grap
 	switch entity.TypeFromURI(uri) {
 	case entity.TypePerson:
 		var p entity.Person
-		if err := g.Decode(&p, uri, rdf.NewNamedNode("")); err != nil {
+		if err := g.Decode(&p, uri, rdf.NewNamedNode(""), s.langs); err != nil {
 			return fmt.Errorf("indexResourceFromGraph decode %s as Person error: %v", uri, err)
 		}
 		p.Process()
@@ -55,7 +58,7 @@ func (s *searchService) indexResourceFromGraph(uri rdf.NamedNode, g *memory.Grap
 	*/
 	case entity.TypeWork:
 		var w entity.Work
-		if err := g.Decode(&w, uri, rdf.NewNamedNode("")); err != nil {
+		if err := g.Decode(&w, uri, rdf.NewNamedNode(""), s.langs); err != nil {
 			return fmt.Errorf("indexResourceFromGraph decode %s as Work error: %v", uri, err)
 		}
 		w.Process()
