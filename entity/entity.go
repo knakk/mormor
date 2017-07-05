@@ -105,7 +105,9 @@ type Person struct {
 	LongDescription  string                 `rdf:"->hasDescription;->hasText"`
 	Links            []string               `rdf:">>hasLink"`
 	Works            []WorkWithPublications `rdf:"<<hasAgent;<-hasContribution"`
-	WorksAbout       []WorkWithPublications `rdf:"<<hasSubject"`
+	// ^ TODO rename OriginalWorks ?
+	Compilations []WorkWithPublications
+	WorksAbout   []WorkWithPublications `rdf:"<<hasSubject"`
 }
 
 type Date struct {
@@ -142,7 +144,8 @@ type Work struct {
 	Contributions        []contribution           `rdf:">>hasContribution"`
 	TranslationOf        *WorkWithoutTranslations `rdf:"->isTranslationOf"`
 	FirstPublicationDate *Date                    `rdf:"->hasFirstPublicationDate"`
-	Forms                []string                 `rdf:"->hasLiteraryForm;->hasName"`
+	Forms                []string                 `rdf:">>hasLiteraryForm;@>hasName"`
+	Compilation          bool                     `rdf:"->isCompilation"`
 }
 
 type WorkWithPublications struct {
@@ -175,7 +178,7 @@ type Publication struct {
 	Publisher        agent         `rdf:"->hasPublisher"`
 	PublicationPlace string        `rdf:"->hasPubliationPlace;->hasName"`
 	Binding          string        `rdf:"->hasBinding;->hasName"`
-	NumPages         uint          `rdf:"->hasNumPages"`
+	NumPages         int           `rdf:"->hasNumPages"`
 	Image            string        `rdf:"->hasImage"`
 	ISBN             []string      `rdf:">>hasISBN"`
 	Description      template.HTML `rdf:"->hasPublisherDescription"`
@@ -199,6 +202,13 @@ func (p *Person) ID() string       { return p.URI }
 func (p *Person) Abstract() string { return p.ShortDescription }
 func (p *Person) EntityType() Type { return TypePerson }
 func (p *Person) Process() {
+	for i := 0; i < len(p.Works); i++ {
+		if p.Works[i].Compilation {
+			p.Compilations = append(p.Compilations, p.Works[i])
+			p.Works = append(p.Works[:i], p.Works[i+1:]...)
+			i--
+		}
+	}
 	sort.Slice(p.Works, func(i, j int) bool {
 		return p.Works[i].FirstPublicationDate.Year > p.Works[j].FirstPublicationDate.Year
 	})

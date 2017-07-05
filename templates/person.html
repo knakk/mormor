@@ -184,18 +184,62 @@
 			<tbody>
 		</table>
 		{{end}}
+		{{if .Compilations}}
+		<h3>Samlinger og utvalg</h3>
+		<table class="about-work-list">
+			<thead>
+				<tr>
+					<th>År</th>
+					<th>Tittel</th>
+					<th>Utgaver</th>
+					<th>Form</th>
+				</tr>
+			</thead>
+			<tbody>
+				{{- range .Compilations}}{{with $work := .}}
+				<tr>
+					<td>{{.FirstPublicationDate}}</td>
+					<td><em>{{.Title}}</em>{{if .ContribsBy "role/author"}} av {{range .ContribsBy "role/author"}}<a href="/{{.Agent.URI}}">{{.Agent.Name}}</a>{{end}}{{end}}</td>
+					<td>
+						{{range .Publications}} <a href="/{{$work.URI}}/{{.URI}}">{{.PublishYear}}</a>{{end}}
+					</td>
+					<td>
+						{{- range .Forms -}}
+							<span class="tag">{{.}}</span>
+						{{- end -}}
+					</td>
+				</tr>
+				{{- end}}{{end}}
+			<tbody>
+		</table>
+		{{end}}
 		{{end}}
 		{{if .WorksAbout}}
 		<h2>Litteratur <em>om</em> {{.Name}}</h2>
 		<table class="about-work-list">
-			<tbody>
-				{{- range .WorksAbout}}
+			<thead>
 				<tr>
-					<td>{{.FirstPubYear}}</td>
-					<td>{{if .Publications}}<a href="/{{.URI}}">{{.Title}}</a>{{else}}{{.Title}}{{end}}{{if .ContribsBy "role/author"}} av {{range .ContribsBy "role/author"}}<a href="/{{.URI}}">{{.Name}}</a>{{end}}{{end}}</td>
-					<td>{{range .Forms}}<span class="tag">{{.}}</span> {{end}}</td>
+					<th>År</th>
+					<th>Tittel</th>
+					<th>Utgaver</th>
+					<th>Form</th>
 				</tr>
-				{{- end}}
+			</thead>
+			<tbody>
+				{{- range .WorksAbout}}{{with $work := .}}
+				<tr>
+					<td>{{.FirstPublicationDate}}</td>
+					<td><em>{{.Title}}</em>{{if .ContribsBy "role/author"}} av {{range .ContribsBy "role/author"}}<a href="/{{.Agent.URI}}">{{.Agent.Name}}</a>{{end}}{{end}}</td>
+					<td>
+						{{range .Publications}} <a href="/{{$work.URI}}/{{.URI}}">{{.PublishYear}}</a>{{end}}
+					</td>
+					<td>
+						{{- range .Forms -}}
+							<span class="tag">{{.}}</span>
+						{{- end -}}
+					</td>
+				</tr>
+				{{- end}}{{end}}
 			<tbody>
 		</table>
 		{{end}}
