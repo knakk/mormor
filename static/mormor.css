@@ -10,19 +10,59 @@ td    { padding: 0.5em 1em 0.5em 0.2em; margin: 0; max-width: 20em; vertical-ali
 a:link,
 a:visited { color: blue; }
 a.no-blue-link { text-decoration: none; color: #000; }
+label     { cursor: pointer; }
+.tag      { font-size: smaller; color: #777; text-transform: uppercase; background: #eee; border-radius: 3px; padding: 3px; margin-right: 0.5em;}
+.smaller  { font-size: smaller;}
+.grey     { color: #888; }
+.relative { position: relative; }
+.dense    { padding: 0; margin: 0 0 0.5em 0; }
 
-.tag     { font-size: smaller; color: #777; text-transform: uppercase; background: #eee; border-radius: 3px; padding: 3px; margin-right: 1em;}
-.smaller { font-size: smaller;}
-.grey    { color: #888; }
-p.dense  { padding: 0; margin: 0 0 0.5em 0; }
+.tr-original-work { border-bottom: 1px solid #ddd; }
 
-
-.book-cover-container       { background-color: #e5e5e5; padding: 10px; width: 120px; height: 180px; }
-.book-cover-container-small { padding: 0 1em 0.5em 0; width: 70px; min-height: 50px;}
+.book-cover-container       { background-color: #e5e5e5; padding: 10px; width: 120px; height: 190px; }
+.book-cover-container-small { background-color: #e5e5e5; width: 90px; height: 140px; text-align: center; padding-top:0.5em;}
 .book-cover-img       { width: 100px; }
-.book-cover-img-small { width: 50px; }
+.book-cover-img-small { width: 70px; }
 .publication-focus         { display: flex; align-items: flex-start; padding: 1em; background-color: #eee}
 .publication-focus-details { align-self: flex-start; padding: 0 1em; }
 .publication-focus-cover {}
 .publication-list { }
 .publication-list-item { display: flex; align-items: flex-start;}
+
+.publication-list-cover { display: flex; flex-wrap: wrap;}
+.publication-list-cover-item { width: 25%; min-width: 200px; padding-right: 1em; }
+
+
+th[role=columnheader]:not(.no-sort) {
+	cursor: pointer;
+}
+
+th[role=columnheader]:not(.no-sort):after {
+	content: '';
+	float: right;
+	margin-top: 7px;
+	border-width: 0 4px 4px;
+	border-style: solid;
+	border-color: #404040 transparent;
+	visibility: hidden;
+	opacity: 0;
+	-ms-user-select: none;
+	-webkit-user-select: none;
+	-moz-user-select: none;
+	user-select: none;
+}
+
+th[aria-sort=ascending]:not(.no-sort):after {
+	border-bottom: none;
+	border-width: 4px 4px 0;
+}
+
+th[aria-sort]:not(.no-sort):after {
+	visibility: visible;
+	opacity: 0.4;
+}
+
+th[role=columnheader]:not(.no-sort):hover:after {
+	visibility: visible;
+	opacity: 1;
+}

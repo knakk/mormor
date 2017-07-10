@@ -8,17 +8,22 @@
 </head>
 <body>
 	<main>
-		<h1>{{.Work.Title}}{{if .Work.Authors}}<br/><span class="smaller">Av {{range .Work.Authors}}<a href="/{{.URI}}">{{.Name}}</a> {{end}}</span>{{end}}</h1>
-		<p><strong>Første gang utgitt:</strong> {{if gt .Work.FirstPubYear 0}}{{.Work.FirstPubYear}}{{else}}ukjent{{end}}</p>
+		<h1>{{.Work.Title}}{{if .Work.ContribsBy "role/author"}}<br/><span class="smaller">Av {{range .Work.ContribsBy "role/author"}}<a href="/{{.Agent.URI}}">{{.Agent.Name}}</a> {{end}}</span>{{end}}</h1>
+		<p>
+			<strong>Første gang utgitt:</strong>
+				{{if .Work.FirstPublicationDate }}
+					{{.Work.FirstPublicationDate}}
+				{{end}}
+			</p>
 		<div class="publication-focus">
 			<div class="book-cover-container publication-focus-cover">
 				{{if .Selected.Image}}
-				<img src="/static/{{.Selected.Image}}" class="book-cover-img">
+				<img src="/static/{{.Selected.URI}}.jpg" class="book-cover-img">
 				{{end}}
 			</div>
 			<div class="publication-focus-details">
-				<h3>{{range .Work.Authors}}{{.Name}} {{end}}<br/>{{.Selected.Title}}{{if .Selected.Subtitle}}<br/><em class="smaller">{{.Selected.Subtitle}}</em>{{end}}</h3>
-				<p>Utgitt i <strong>{{.Selected.PubYear}}</strong> av <a href="/{{.Selected.Publisher.URI}}">{{.Selected.Publisher.Name}}</a></p>
+				<h3>{{range .Work.ContribsBy "role/author"}}{{.Agent.Name}} {{end}}<br/>{{.Selected.Title}}{{if .Selected.Subtitle}}<br/><em class="smaller">{{.Selected.Subtitle}}</em>{{end}}</h3>
+				<p>Utgitt i <strong>{{.Selected.PublishYear}}</strong> av <a href="/{{.Selected.Publisher.URI}}">{{.Selected.Publisher.Name}}</a></p>
 				{{if .Selected.EditionNote}}<p>{{.Selected.EditionNote}}</p>{{end}}
 				<p>{{if .Selected.Binding}}{{.Selected.Binding}}{{end}}{{if gt .Selected.NumPages 0}}, {{.Selected.NumPages}} sider{{end}}</p>
 				{{if .Selected.Description}}
@@ -44,7 +49,7 @@
 				<tbody>
 					{{range $work.Publications}}
 					<tr>
-						<td><a href="/{{$work.URI}}/{{.URI}}">{{.PubYear}}</a></td>
+						<td><a href="/{{$work.URI}}/{{.URI}}">{{.PublishYear}}</a></td>
 						<td>{{.Title}}{{if .Subtitle}}<br/><span class="smaller">{{.Subtitle}}</span>{{end}}</td>
 						<td>{{.Publisher.Name}}</td>
 						<td>{{range .ISBN}}{{.}}<br/>{{end}}</td>

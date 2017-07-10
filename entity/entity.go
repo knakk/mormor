@@ -2,6 +2,7 @@ package entity
 
 import (
 	"bytes"
+	"fmt"
 	"html/template"
 	"sort"
 	"strconv"
@@ -40,6 +41,7 @@ const (
 	TypeCorporation
 	TypePublication
 	TypeWork
+	TypePublisherSeries
 )
 
 func (t Type) Class() rdf.NamedNode {
@@ -52,6 +54,8 @@ func (t Type) Class() rdf.NamedNode {
 		return rdf.NewNamedNode("Publication")
 	case TypeWork:
 		return rdf.NewNamedNode("Work")
+	case TypePublisherSeries:
+		return rdf.NewNamedNode("PublisherSeries")
 	case typeInvalid:
 		fallthrough
 	default:
@@ -70,6 +74,8 @@ func (t Type) String() string {
 		return "Publication"
 	case TypeWork:
 		return "Work"
+	case TypePublisherSeries:
+		return "Publisher series"
 	case typeInvalid:
 		fallthrough
 	default:
@@ -138,9 +144,10 @@ func (d Date) String() string {
 
 type Work struct {
 	URI                  string                   `rdf:"id"`
-	Title                string                   `rdf:"->hasTitle"`
+	OriginalTitle        string                   `rdf:"->hasOriginalTitle"`
+	Title                string                   `rdf:"@>hasTitle"`
 	AltTitle             []string                 `rdf:">>hasAlternativeTitle"`
-	Language             string                   `rdf:"->hasLanguage"`
+	Language             namedWithLang            `rdf:"->hasLanguage"`
 	Contributions        []contribution           `rdf:">>hasContribution"`
 	TranslationOf        *WorkWithoutTranslations `rdf:"->isTranslationOf"`
 	FirstPublicationDate *Date                    `rdf:"->hasFirstPublicationDate"`
@@ -161,7 +168,7 @@ type WorkWithoutTranslations struct {
 
 type contribution struct {
 	Role  string `rdf:"->hasRole"`
-	Agent agent  `rdf:"->hasAgent"`
+	Agent named  `rdf:"->hasAgent"`
 	Alias string `rdf:"->usingPseudonym;->hasName"`
 }
 
@@ -175,7 +182,7 @@ type Publication struct {
 	Title            string        `rdf:"->hasMainTitle"`
 	Subtitle         string        `rdf:"->hasSubtitle"`
 	PublishYear      int           `rdf:"->hasPublishYear"`
-	Publisher        agent         `rdf:"->hasPublisher"`
+	Publisher        named         `rdf:"->hasPublisher"`
 	PublicationPlace string        `rdf:"->hasPubliationPlace;->hasName"`
 	Binding          string        `rdf:"->hasBinding;->hasName"`
 	NumPages         int           `rdf:"->hasNumPages"`
@@ -183,12 +190,46 @@ type Publication struct {
 	ISBN             []string      `rdf:">>hasISBN"`
 	Description      template.HTML `rdf:"->hasPublisherDescription"`
 	EditionNote      string        `rdf:"->hasEditionNote"`
+	Series           []SeriesEntry `rdf:">>isPublishedInSeries"`
 }
 
-type agent struct {
+type SeriesEntry struct {
+	NumberInSeries int   `rdf:"->hasNumber"`
+	Series         named `rdf:"->inSeries"`
+}
+
+func (p *Publication) NumberInSeries(series string) int {
+	for _, s := range p.Series {
+		if s.Series.Name == series {
+			return s.NumberInSeries
+		}
+	}
+	return 0
+}
+
+type named struct {
 	URI  string `rdf:"id"`
 	Name string `rdf:"->hasName"`
 }
+
+type namedWithLang struct {
+	URI  string `rdf:"id"`
+	Name string `rdf:"@>hasName"`
+}
+
+type PublisherSeries struct {
+	URI              string `rdf:"id"`
+	Name             string `rdf:"->hasName"`
+	ShortDescription string `rdf:"->hasShortDescription"`
+	Publisher        named
+	Contributions    []contribution        `rdf:">>hasContribution"`
+	Publications     []PublicationWithWork `rdf:"<<inSeries;<-isPublishedInSeries"`
+}
+
+func (p *PublisherSeries) ID() string       { return p.URI }
+func (p *PublisherSeries) Abstract() string { return "" }
+func (p *PublisherSeries) EntityType() Type { return TypePublisherSeries }
+func (p *PublisherSeries) Process()         {}
 
 func (p *Person) CanonicalTitle() string {
 	var b bytes.Buffer
@@ -210,7 +251,9 @@ func (p *Person) Process() {
 		}
 	}
 	sort.Slice(p.Works, func(i, j int) bool {
-		return p.Works[i].FirstPublicationDate.Year > p.Works[j].FirstPublicationDate.Year
+		return p.Works[i].FirstPublicationDate != nil &&
+			p.Works[j].FirstPublicationDate != nil &&
+			p.Works[i].FirstPublicationDate.Year > p.Works[j].FirstPublicationDate.Year
 	})
 }
 
@@ -234,21 +277,97 @@ func (p *Person) WorksAs(role string, uri string) (res []WorkWithPublications) {
 	return res
 }
 
-func (w *WorkWithPublications) TranslationsLanguages() map[string]int {
-	if len(w.Translations) == 0 {
-		return nil
+type Link struct {
+	Target string
+	Label  string
+}
+
+func (w *WorkWithPublications) PublicationLinksByLanguageExcluding(langs []string) map[string][]Link {
+	res := make(map[string][]Link)
+	if len(w.Publications) > 0 {
+		found := false
+		for _, lang := range langs {
+			if w.Language.URI == lang {
+				found = true
+				break
+			}
+		}
+		if !found {
+			for _, p := range w.Publications {
+				res[w.Language.Name] = append(res[w.Language.Name], Link{
+					Target: fmt.Sprintf("/%s/%s", w.URI, p.URI),
+					Label:  strconv.Itoa(p.PublishYear),
+				})
+			}
+		}
 	}
-	res := make(map[string]int)
-	for _, t := range w.Translations {
-		res[t.Language]++
+	for _, w := range w.Translations {
+		found := false
+		if len(w.Publications) > 0 {
+			for _, lang := range langs {
+				if w.Language.URI == lang {
+					found = true
+					break
+				}
+			}
+		}
+		if !found {
+			for _, p := range w.Publications {
+				res[w.Language.Name] = append(res[w.Language.Name], Link{
+					Target: fmt.Sprintf("/%s/%s", w.URI, p.URI),
+					Label:  strconv.Itoa(p.PublishYear),
+				})
+			}
+		}
+	}
+
+	for lang, _ := range res {
+		sort.Slice(res[lang], func(i, j int) bool {
+			return res[lang][i].Label < res[lang][j].Label
+		})
 	}
 	return res
 }
-func (w *WorkWithPublications) TranslationsByLanguage() map[string][]WorkWithPublications {
+
+func (w *WorkWithPublications) PublicationLinksForLanguages(langs []string) []Link {
+	var res []Link
+	if len(w.Publications) > 0 {
+		for _, lang := range langs {
+			if w.Language.URI == lang {
+				for _, p := range w.Publications {
+					res = append(res, Link{
+						Target: fmt.Sprintf("/%s/%s", w.URI, p.URI),
+						Label:  strconv.Itoa(p.PublishYear),
+					})
+				}
+			}
+		}
+	}
+	for _, w := range w.Translations {
+		if len(w.Publications) > 0 {
+			for _, lang := range langs {
+				if w.Language.URI == lang {
+					for _, p := range w.Publications {
+						res = append(res, Link{
+							Target: fmt.Sprintf("/%s/%s", w.URI, p.URI),
+							Label:  strconv.Itoa(p.PublishYear),
+						})
+					}
+				}
+			}
+		}
+	}
+	sort.Slice(res, func(i, j int) bool {
+		return res[i].Label < res[j].Label
+	})
+	return res
+}
+
+func (w *WorkWithPublications) TranslationsByLanguage() map[namedWithLang][]WorkWithPublications {
 	if len(w.Translations) == 0 {
 		return nil
 	}
-	res := make(map[string][]WorkWithPublications)
+	res := make(map[namedWithLang][]WorkWithPublications)
 	for _, t := range w.Translations {
 		res[t.Language] = append(res[t.Language], t)
 	}
@@ -267,15 +386,19 @@ func (w *Work) CanonicalTitle() string {
 	return b.String()
 }
 
-func (w *Work) Process() {
-	/*for _, c := range w.OriginalContributions {
-		w.Contributions = append(w.Contributions, c)
-	}*/
-}
+func (w *Work) Process() {}
+
 func (w *Work) ContribsBy(role string) (c []contribution) {
 	for _, contrib := range w.Contributions {
 		if contrib.Role == role {
 			c = append(c, contrib)
+		}
+	}
+	if w.TranslationOf != nil {
+		for _, contrib := range w.TranslationOf.Contributions {
+			if contrib.Role == role {
+				c = append(c, contrib)
+			}
 		}
 	}
 	return c

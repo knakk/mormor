@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset=utf-8>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>{{.Name}}</title>
+	<link href="/static/mormor.css" media="all" rel="stylesheet" />
+</head>
+<body>
+	<main>
+		<h1>{{.Name}}</h1>
+		<p>{{.ShortDescription}}</p>
+		{{with $series := .}}
+		<div id="grid-view" class="publication-list-cover">
+			{{range .Publications}}
+				<div class="publication-list-cover-item">
+					<a class="no-blue-link" href="/{{.Work.URI}}/{{.URI}}">
+						<div class="book-cover-container">
+							{{if .Image}}
+								<img src="/static/{{.URI}}.jpg" class="book-cover-img">
+							{{end}}
+						</div>
+					</a>
+					<p class="relative">
+						<a class="no-blue-link" href="/{{.Work.URI}}/{{.URI}}">{{if .NumberInSeries $series.Name}}{{.NumberInSeries $series.Name}}<br/>{{end}}<strong>{{.Title}}</strong> ({{.PublishYear}})</a><br/>
+						<span class="smaller">
+							{{range .Work.ContribsBy "role/author"}}
+								<a href="/{{.Agent.URI}}">{{.Agent.Name}}</a><br/>
+							{{end}}
+							{{range .Work.ContribsBy "role/editor"}}
+								<a href="/{{.Agent.URI}}">{{.Agent.Name}}</a> (redaktør)<br/>
+							{{end}}
+						</span>
+					</p>
+				</div>
+			{{end}}
+		</div>
+		{{end}}
+		<div>
+			<hr>
+			<p style="font-size:smaller">Vis metadata som <a href="/{{.URI}}.rdf">RDF</a> | <a href="/{{.URI}}.svg">SVG</a> </p>
+		</div>
+	</main>
+<script src="/static/mormor.js" type="text/javascript"></script>
+</body>
+</html>

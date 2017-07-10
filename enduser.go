@@ -13,16 +13,24 @@ import (
 	"github.com/knakk/mormor/entity"
 )
 
+var (
+	langTagToLangs = map[string][]string{
+		"no": []string{"lang/nob", "lang/nno"},
+		"en": []string{"lang/eng"},
+	}
+	prefLangs = []string{"lang/nob", "lang/nno", "lang/dan", "lang/swe", "lang/eng", "lang/ger", "lang/fre"}
+)
+
 type enduserService struct {
 	addr     string
-	langs    []string
+	lang     string
 	metadata *metadataService
 }
 
-func newEndUserService(addr string, langs string, metadata *metadataService) *enduserService {
+func newEndUserService(addr string, lang string, metadata *metadataService) *enduserService {
 	return &enduserService{
 		addr:     addr,
-		langs:    strings.Split(langs, ","),
+		lang:     lang,
 		metadata: metadata,
 	}
 }
@@ -69,14 +77,15 @@ func (e *enduserService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		bnodeEdges := map[string][2]string{
-			"hasContribution": [2]string{"hasAgent", "hasRole"},
+			"hasContribution":     [2]string{"hasAgent", "hasRole"},
+			"isPublishedInSeries": [2]string{"inSeries", "hasNumber"},
 		}
 
 		dot := g.(*memory.Graph).Dot(uri, memory.DotOptions{
 			Base:            "",
 			Inline:          []string{"hasLink", "hasImage"},
 			InlineWithLabel: map[string]string{"hasLiteraryForm": "hasName", "hasLanguage": "hasName", "hasBinding": "hasName"},
-			FullTypes:       []string{"Person", "Corporation", "Publication", "Place", "Alias", "Work"},
+			FullTypes:       []string{"Person", "Corporation", "Publication", "Place", "Alias", "Work", "Event", "PublisherSeries"},
 			BnodeEdges:      bnodeEdges})
 		cmd := exec.Command("dot", "-Tsvg")
 		cmd.Stdin = strings.NewReader(dot)
@@ -105,6 +114,8 @@ func (e *enduserService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		e.servePublication(w, r, strings.Join(paths[:2], "/"), strings.Join(paths[2:], "/"))
+	case "publisherSeries":
+		e.servePublisherSeries(w, r, strings.Join(paths, "/"))
 	case "static":
 		http.ServeFile(w, r, strings.Join(paths, "/"))
 	default:
@@ -136,16 +147,44 @@ func (e *enduserService) servePerson(w http.ResponseWriter, r *http.Request, per
 		return
 	}
 	var p entity.Person
-	if err := g.(*memory.Graph).Decode(&p, rdf.NewNamedNode(personID), rdf.NewNamedNode(""), e.langs); err != nil {
+	if err := g.(*memory.Graph).Decode(&p, rdf.NewNamedNode(personID), rdf.NewNamedNode(""), []string{e.lang}); err != nil {
 		log.Printf("%s decode Person error: %v", r.URL.Path, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 	p.Process()
+
+	/*
+		// Order translations by language score
+		for wi := range p.Works {
+			sort.Slice(p.Works[wi].Translations, func(i, j int) bool {
+				a, b := 99, 99
+				for ii, l := range prefLangs {
+					if l == p.Works[wi].Translations[i].Language.URI {
+						a = ii
+						break
+					}
+				}
+				for jj, l := range prefLangs {
+					if l == p.Works[wi].Translations[j].Language.URI {
+						b = jj
+						break
+					}
+				}
+				return a < b
+			})
+		}
+	*/
 	//spew.Dump(p)
 	//fmt.Printf("%+v\n", p)
 
-	if err := templates.ExecuteTemplate(w, "person.html", &p); err != nil {
+	if err := templates.ExecuteTemplate(w, "person.html", struct {
+		Person *entity.Person
+		Langs  []string
+	}{
+		Person: &p,
+		Langs:  langTagToLangs[e.lang],
+	}); err != nil {
 		log.Printf("%s: %v", r.URL.Path, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
@@ -159,7 +198,7 @@ func (e *enduserService) servePublication(w http.ResponseWriter, r *http.Request
 		return
 	}
 	var wrk entity.WorkWithPublications
-	if err := g.(*memory.Graph).Decode(&wrk, rdf.NewNamedNode(workID), rdf.NewNamedNode(""), e.langs); err != nil {
+	if err := g.(*memory.Graph).Decode(&wrk, rdf.NewNamedNode(workID), rdf.NewNamedNode(""), []string{e.lang}); err != nil {
 		log.Printf("%s: %v", r.URL.Path, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
@@ -178,8 +217,31 @@ func (e *enduserService) servePublication(w http.ResponseWriter, r *http.Request
 	}
 	if err := templates.ExecuteTemplate(w, "work.html", struct {
 		Selected entity.Publication
-		Work     entity.WorkWithPublications
-	}{Selected: selected, Work: wrk}); err != nil {
+		Work     *entity.WorkWithPublications
+	}{Selected: selected, Work: &wrk}); err != nil {
+		log.Printf("%s: %v", r.URL.Path, err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+	}
+}
+
+func (e *enduserService) servePublisherSeries(w http.ResponseWriter, r *http.Request, seriesID string) {
+	g, err := e.metadata.triplestore.Describe(rdf.DescSymmetricRecursive, rdf.NewNamedNode(seriesID))
+	if err != nil {
+		log.Printf("%s desribe resource error: %v", r.URL.Path, err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	var s entity.PublisherSeries
+	if err := g.(*memory.Graph).Decode(&s, rdf.NewNamedNode(seriesID), rdf.NewNamedNode(""), []string{e.lang}); err != nil {
+		log.Printf("%s decode PublisherSeries error: %v", r.URL.Path, err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	s.Process()
+	//spew.Dump(s)
+	//fmt.Printf("%+v\n", p)
+
+	if err := templates.ExecuteTemplate(w, "publisher_series.html", &s); err != nil {
 		log.Printf("%s: %v", r.URL.Path, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
